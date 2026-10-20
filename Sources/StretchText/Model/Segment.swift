@@ -73,13 +73,58 @@ public struct Segment: Hashable, Sendable, Codable, Identifiable {
 
 /// O texto de origem dividido em blocos contíguos.
 ///
-/// Invariante: `segments.map(\.text).joined() == source`.
+/// Só ``TextSegmenter`` cria segmentações, e a decodificação confere as
+/// invariantes, para que a montagem dos trechos possa confiar nelas:
+///
+/// - `segments.map(\.text).joined() == source`, com os blocos numerados em
+///   ordem e `utf8Range` apontando para o texto de cada um;
+/// - cada frase é o recorte literal do bloco em `utf8Range`, com o ID do bloco
+///   e índices em ordem;
+/// - só parágrafos têm frases.
 public struct Segmentation: Hashable, Sendable, Codable {
     public let source: String
     public let segments: [Segment]
 
-    public init(source: String, segments: [Segment]) {
+    init(source: String, segments: [Segment]) {
         self.source = source
         self.segments = segments
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let source = try container.decode(String.self, forKey: .source)
+        let segments = try container.decode([Segment].self, forKey: .segments)
+        if let problem = Self.inconsistency(source: source, segments: segments) {
+            throw DecodingError.dataCorruptedError(forKey: .segments, in: container, debugDescription: problem)
+        }
+        self.init(source: source, segments: segments)
+    }
+
+    /// Descrição da primeira invariante quebrada, ou `nil`.
+    static func inconsistency(source: String, segments: [Segment]) -> String? {
+        let sourceBytes = Array(source.utf8)
+        var offset = 0
+        for (position, segment) in segments.enumerated() {
+            guard segment.id == position else { return "bloco \(position) com ID \(segment.id)" }
+            let range = segment.utf8Range
+            guard range.lowerBound == offset, range.upperBound <= sourceBytes.count,
+                  sourceBytes[range].elementsEqual(segment.text.utf8)
+            else { return "bloco \(position) não corresponde à origem" }
+            offset = range.upperBound
+            guard segment.kind == .paragraph || segment.sentences.isEmpty else {
+                return "bloco \(position) não é parágrafo e tem frases"
+            }
+            let segmentBytes = Array(segment.text.utf8)
+            for (index, sentence) in segment.sentences.enumerated() {
+                guard sentence.id == SentenceID(segment: position, index: index) else {
+                    return "frase \(sentence.id) fora de ordem no bloco \(position)"
+                }
+                let range = sentence.utf8Range
+                guard range.lowerBound >= 0, range.upperBound <= segmentBytes.count,
+                      segmentBytes[range].elementsEqual(sentence.text.utf8)
+                else { return "frase \(sentence.id) não corresponde ao bloco" }
+            }
+        }
+        return offset == sourceBytes.count ? nil : "os blocos não cobrem a origem"
     }
 }

@@ -114,43 +114,50 @@ public struct StretchDocument: Sendable, Codable {
         }
     }
 
+    /// Une textos vizinhos num buffer, para que o custo seja linear no tamanho
+    /// do texto mesmo com muitos nós seguidos.
     static func normalized(_ nodes: [StretchNode]) -> [StretchNode] {
         var result: [StretchNode] = []
+        var buffer = ""
+        func flush() {
+            if !buffer.isEmpty { result.append(.text(buffer)) }
+            buffer = ""
+        }
         for node in nodes {
             switch node {
             case .text(let text):
-                guard !text.isEmpty else { continue }
-                if case .text(let previous)? = result.last {
-                    result[result.count - 1] = .text(previous + text)
-                } else {
-                    result.append(node)
-                }
+                buffer += text
             case .code:
+                flush()
                 result.append(node)
             case .stretch(var stretch):
+                flush()
                 stretch.short = normalized(stretch.short)
                 stretch.long = normalized(stretch.long)
                 result.append(.stretch(stretch))
             }
         }
+        flush()
         return result
     }
 
     static func normalized(_ nodes: [InlineNode]) -> [InlineNode] {
         var result: [InlineNode] = []
+        var buffer = ""
+        func flush() {
+            if !buffer.isEmpty { result.append(.text(buffer)) }
+            buffer = ""
+        }
         for node in nodes {
             switch node {
             case .text(let text):
-                guard !text.isEmpty else { continue }
-                if case .text(let previous)? = result.last {
-                    result[result.count - 1] = .text(previous + text)
-                } else {
-                    result.append(node)
-                }
+                buffer += text
             case .code:
+                flush()
                 result.append(node)
             }
         }
+        flush()
         return result
     }
 }
