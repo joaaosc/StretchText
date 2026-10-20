@@ -67,8 +67,33 @@ let extractive = StretchValidator.validate(result.document, policy: .extractive)
 
 Cada problema traz o trecho, o tipo (por exemplo, `longOmitsShortWords`, `stretchInHeading`) e, quando o documento veio do parser, a linha e a coluna.
 
+## Escolha da frase pelo modelo do aparelho (opcional)
+
+O produto `StretchTextGeneration` usa o Foundation Models para escolher, entre as frases que já existem no parágrafo, a que melhor resume o bloco. O modelo só devolve o rótulo de uma frase oferecida; as formas curta e longa continuam sendo texto literal do autor.
+
+```swift
+import Foundation
+import StretchText
+import StretchTextGeneration
+
+let picker = CachingKeySentencePicker(base: ModelKeySentencePicker(), cache: KeySentenceCache())
+let folder = KeySentenceFolder(picker: picker, policy: .useFirstSentence)
+let result = try await folder.fold(TextSegmenter.segment(markdown), locale: Locale(identifier: "pt-BR"))
+
+result.fold.document          // o documento montado
+result.fold.decisions         // origem de cada escolha: .model, .cache, .firstSentenceAfterFailure(motivo)…
+result.pickerDecisions        // decisão crua do seletor por bloco
+```
+
+- Sem o modelo disponível, com idioma não atendido, texto grande demais para a janela de contexto, prazo esgotado ou recusa, a escolha falha com um motivo tipado (`KeySentenceFailure`). A política decide o que acontece depois: `.useFirstSentence` aplica a primeira frase e guarda o motivo; `.leaveUnchanged` deixa o bloco como estava. Nenhuma falha vira "escolha do modelo".
+- Tudo roda no aparelho: modelo do sistema, guardrails padrão, sem rede, sem Private Cloud Compute e sem ferramentas.
+- O cache guarda só escolhas do modelo já conferidas. A chave muda com o texto, o idioma, as versões e o sistema.
+
 ## Testes
 
 ```sh
 swift test
+STRETCHTEXT_RUNTIME_TESTS=1 swift test --filter SystemModelRuntimeTests   # modelo real, se disponível
 ```
+
+A avaliação contra a linha de base está em [`Evaluation/`](Evaluation/README.md).
