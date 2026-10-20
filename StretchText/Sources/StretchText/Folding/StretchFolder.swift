@@ -9,13 +9,20 @@ public enum StretchFolder {
         let sentence: Sentence
     }
 
-    /// Dobra os blocos escolhidos. Confere todas as escolhas, em ordem crescente
-    /// de bloco, antes de montar qualquer coisa. Bloco dobrável sem escolha fica
-    /// `.unchanged(.noChoice)`.
+    /// Dobra os blocos escolhidos. Confere todas as escolhas e falhas, em ordem
+    /// crescente de bloco, antes de montar qualquer coisa. Bloco dobrável sem
+    /// escolha fica `.unchanged(.noChoice)`; com falha registrada, fica
+    /// `.unchanged(.selectionFailed(_:))`.
     public static func fold(
         _ segmentation: Segmentation,
-        choices: [Int: SentenceChoice]
+        choices: [Int: SentenceChoice],
+        failures: [Int: KeySentenceFailure] = [:]
     ) throws(FoldError) -> FoldResult {
+        for index in failures.keys.sorted() {
+            guard segmentation.segments.indices.contains(index) else { throw .unknownSegment(index) }
+            guard segmentation.segments[index].isFoldable else { throw .segmentNotFoldable(index) }
+            guard choices[index] == nil else { throw .choiceAndFailureForSegment(index) }
+        }
         var picks: [Int: Pick] = [:]
         for (index, choice) in choices.sorted(by: { $0.key < $1.key }) {
             guard segmentation.segments.indices.contains(index) else {
@@ -32,7 +39,7 @@ public enum StretchFolder {
             }
             picks[index] = Pick(choice: choice, sentence: sentence)
         }
-        return assemble(segmentation, picks: picks)
+        return assemble(segmentation, picks: picks, failures: failures)
     }
 
     /// Linha de base: dobra todo bloco dobrável pela primeira frase.
@@ -45,7 +52,7 @@ public enum StretchFolder {
             else { continue }
             picks[index] = Pick(choice: choice, sentence: sentence)
         }
-        return assemble(segmentation, picks: picks)
+        return assemble(segmentation, picks: picks, failures: [:])
     }
 
     /// A forma curta ocupa uma linha: cada sequência de espaços em branco com
@@ -80,7 +87,11 @@ public enum StretchFolder {
 
     // MARK: - Montagem
 
-    private static func assemble(_ segmentation: Segmentation, picks: [Int: Pick]) -> FoldResult {
+    private static func assemble(
+        _ segmentation: Segmentation,
+        picks: [Int: Pick],
+        failures: [Int: KeySentenceFailure]
+    ) -> FoldResult {
         var nodes: [StretchNode] = []
         var decisions: [FoldDecision] = []
         var stretchCount = 0
@@ -96,7 +107,8 @@ public enum StretchFolder {
                 decisions.append(.folded(segment: index, stretch: id, choice: pick.choice))
             } else {
                 nodes.append(.text(segment.text))
-                decisions.append(.unchanged(segment: index, reason: reason(for: segment)))
+                let reason = failures[index].map(UnchangedReason.selectionFailed) ?? reason(for: segment)
+                decisions.append(.unchanged(segment: index, reason: reason))
             }
         }
         return FoldResult(
