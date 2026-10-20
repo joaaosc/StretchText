@@ -14,6 +14,11 @@ let package = Package(
     targets: [
         .target(name: "StretchText"),
         .target(name: "StretchTextGeneration", dependencies: ["StretchText"]),
+        .executableTarget(
+            name: "StretchTextEvaluation",
+            dependencies: ["StretchText", "StretchTextGeneration"],
+            path: "Evaluation/Sources"
+        ),
         .testTarget(name: "StretchTextTests", dependencies: ["StretchText"]),
         .testTarget(name: "StretchTextGenerationTests", dependencies: ["StretchTextGeneration"]),
     ],
