@@ -36,7 +36,7 @@ Qualquer mudança que altere a saída do segmentador ou do parser para a mesma e
 - `StretchNode`: `.text` (literal, sem escapes), `.code` (como na origem, com crases ou cerca) e `.stretch`.
 - `Stretch`: `short: [InlineNode]` (só texto e código: o tipo impede trecho na forma curta), `long: [StretchNode]`, `progress`.
 - `StretchID`: numera só trechos de primeiro nível e de formas longas, em ordem de texto.
-- `Segmentation`/`Segment`/`Sentence`: blocos contíguos do texto de origem; offsets em bytes UTF-8.
+- `Segmentation`/`Segment`/`Sentence`: blocos contíguos do texto de origem; offsets em bytes UTF-8. Só o `TextSegmenter` cria uma `Segmentation`; a decodificação confere as invariantes (blocos cobrem a origem, frases são recortes literais), para que a montagem possa confiar nelas.
 - `FoldResult`/`FoldDecision`/`SentenceChoice`/`SelectionSource`/`UnchangedReason`/`FoldError`: resultado da montagem, uma decisão por bloco.
 
 ## Gramática de marcação (versão 1)
@@ -60,14 +60,23 @@ Regras:
 6. Código em linha: sequência de N crases até a próxima sequência de exatamente N crases, sem atravessar linha em branco. Sem par, as crases são texto. Delimitadores de trecho dentro do código são texto.
 7. Bloco de código cercado: no início de linha (até 3 espaços), três ou mais crases ou tis. Vai até uma linha com a mesma cerca (mesmo caractere, comprimento igual ou maior, só espaços depois) ou até o fim do texto. O nó `.code` guarda da cerca de abertura até o fim da cerca de fechamento, sem a quebra de linha seguinte.
 8. Código indentado (4 espaços) não é reconhecido pelo parser de marcação. Títulos e tabelas não mudam o parse; o validador aponta trecho dentro deles.
+9. No máximo `StretchParser.maximumNestingDepth` (32) trechos abertos um dentro do outro. Além disso, `nestingTooDeep` nos dois modos. O modelo de documento é recursivo; o limite impede que uma marcação hostil esgote a pilha.
+
+Detalhes fixados na implementação:
+
+- A leitura é por escalares Unicode, para que um delimitador seguido de acento combinante continue sendo delimitador. A coluna das localizações conta `Character`.
+- Quebra de linha é `\n`, `\r` ou `\r\n` (conta uma vez), como no CommonMark. A mesma definição vale para o parser, o segmentador e o validador; NEL, LS e PS são texto comum. Linha em branco é a que só tem espaços ou tabs.
+- Cerca de crases cuja linha de abertura tem outra crase depois da cerca não é cerca (como no CommonMark): as crases são lidas como código em linha. Cerca de tis aceita qualquer texto depois.
+- Os até 3 espaços antes da cerca de abertura ficam no texto anterior; o nó `.code` vai do primeiro ao último caractere de cerca. A linha de abertura pode ter texto depois da cerca (`` ```swift ``).
 
 ### Modos
 
 - `.complete`: fim do texto com trecho aberto lança `unclosedStretch`.
-- `.streaming`: fim do texto com trecho aberto fecha o trecho como incompleto (`receivingShort` se o `|` ainda não chegou; `receivingLong` depois dele). Todos os trechos abertos na pilha ficam incompletos. `missingSeparator` e `stretchInShortForm` lançam erro nos dois modos, porque já são definitivos.
-- Cada análise refaz o texto inteiro. Por isso os IDs de trechos já recebidos não mudam quando o texto cresce.
+- `.streaming`: fim do texto com trecho aberto fecha o trecho como incompleto (`receivingShort` se o `|` ainda não chegou; `receivingLong` depois dele). Todos os trechos abertos na pilha ficam incompletos. `missingSeparator`, `stretchInShortForm` e `nestingTooDeep` lançam erro nos dois modos, porque o texto que já chegou não muda a leitura — com uma exceção: depois de uma crase sem par no mesmo parágrafo, a leitura é provisória (ver abaixo).
+- Cada análise refaz o texto inteiro. Por isso os IDs de trechos já recebidos não mudam quando o texto cresce, com a mesma exceção.
+- Exceção da crase sem par: enquanto a crase de fechamento não chega, o que vem depois dela é lido como marcação. Quando ela chega, esse trecho vira código: um trecho que parecia existir some (o `StretchState.replaceDocument` fecha e devolve o ID) e um erro que tinha aparecido deixa de existir. Quem consome o modo `.streaming` não deve tratar esse erro como final antes do fim do parágrafo.
 
-`StretchParseError` carrega a `SourceLocation` do `{{` envolvido (linha e coluna a partir de 1, coluna em `Character`).
+`StretchParseError` (`unclosedStretch`, `missingSeparator`, `stretchInShortForm`, `nestingTooDeep`) carrega a `SourceLocation` do `{{` envolvido (linha e coluna a partir de 1, coluna em `Character`).
 
 ### Escritor
 
@@ -87,11 +96,11 @@ Garantias testadas:
 - `replaceDocument(_:)` (texto que chega aos poucos) mantém os IDs abertos que ainda existem, continuam visíveis e não estão em `receivingShort`, e devolve os que foram fechados, em ordem.
 - `visibleText`, `isOpen`, `isVisible`, `visibleStretchIDs` (trechos cujo ancestral está todo aberto).
 - `anchors(revealing:)` calcula as âncoras entre o que o leitor via (forma curta) e o que a longa mostra no estado atual.
-- `Codable`: a decodificação rejeita IDs abertos que não existem ou não estão visíveis.
+- `Codable`: a decodificação rejeita IDs abertos que não existem, que têm ancestral fora do conjunto ou que estão em `receivingShort`.
 
 ## Âncoras
 
-`WordTokenizer.tokenize(_:)` divide o texto em tokens contíguos (a concatenação devolve o texto original). Palavra é uma sequência de letras, números e marcas combinantes; `'`, `’`, `-` e `‐` entre duas letras ou números fazem parte da palavra (`guarda-chuva`, `d’água`), assim como `.` e `,` entre dois dígitos (`3,14`). O resto (espaços, pontuação, símbolos, emoji) são tokens separadores.
+`WordTokenizer.tokenize(_:)` divide o texto em tokens contíguos (a concatenação devolve o texto original). Palavra é uma sequência de letras, números e marcas combinantes; `'`, `’`, `-` e `‐` entre duas letras ou números fazem parte da palavra (`guarda-chuva`, `d’água`), assim como `.` e `,` entre dois dígitos (`3,14`). O resto (espaços, pontuação, símbolos, emoji, `_`) são tokens separadores, e separadores seguidos formam um token só. "Dígito" é a categoria Unicode `Nd`, então dígitos de outras escritas também valem. O emoji de tecla (`1️⃣`), que o Swift classifica como número, é separador.
 
 `Anchors.compute(seen:revealed:)` usa a maior subsequência comum entre as palavras das duas formas. Palavras são comparadas com `lowercased()`; acentos contam (`é` ≠ `e`), e a equivalência canônica do Unicode vale. O resultado:
 
@@ -99,27 +108,27 @@ Garantias testadas:
 - `pieces`: partição de `revealed` em `.anchored` (palavra que já estava na curta), `.added` (palavra nova) e `.separator` (espaço e pontuação, mantidos como estão).
 - `unmatchedSeenWords`: palavras da curta sem par na longa, em ordem. Vazio quando a longa contém a curta.
 
-Programação dinâmica O(n·m) sobre palavras; empate resolvido de forma fixa (preferir casar o mais cedo possível na longa), para que o resultado seja determinístico.
+Primeiro, casamento guloso em O((n + m) log m): cada palavra da curta casa com a próxima ocorrência na longa. Quando todas casam (o caso de uma forma longa válida), esse é exatamente o resultado da programação dinâmica, e ela não roda. Senão, programação dinâmica O(n·m) com tabela de inteiros de 32 bits, empate resolvido de forma fixa (preferir avançar na longa). Acima de `Anchors.maximumAlignmentCells` (4 milhões de células, cerca de 16 MB), fica o resultado guloso, também determinístico. Assim nenhum texto, por maior que seja, aloca memória sem limite.
 
 ## Segmentação (versão 1)
 
-`TextSegmenter.segment(_:) -> Segmentation`. Regras por linha, sem dependência do sistema operacional:
+`TextSegmenter.segment(_:) -> Segmentation`. Regras por linha, sem dependência do sistema operacional. As quebras de linha são `\n`, `\r\n` e `\r`, como no parser e no validador:
 
 - Linhas em branco formam blocos `.blank` (com as quebras de linha entre blocos). A quebra de linha final de um bloco fica no `.blank` seguinte.
-- Cerca de código (```` ``` ```` ou `~~~`, até 3 espaços) → `.codeBlock` até a cerca de fechamento ou o fim.
+- Cerca de código (```` ``` ```` ou `~~~`, até 3 espaços; cerca de crases sem outra crase na linha) → `.codeBlock` até a cerca de fechamento ou o fim.
 - Linha com 4 ou mais espaços (ou tab) começando um bloco → `.codeBlock` (linhas indentadas consecutivas).
 - `#` a `######` seguido de espaço ou fim de linha → `.heading` (uma linha). Parágrafo seguido de linha só com `=` ou só com `-` (sublinhado) → `.heading` (as linhas todas).
 - `---`, `***`, `___` (três ou mais, espaços permitidos) sozinhos na linha, fora do caso acima → `.thematicBreak`.
-- Linha começando com `|`, ou bloco cuja segunda linha é delimitador de tabela (`|---|:--:|`) → `.table` (linhas consecutivas).
-- `- `, `* `, `+ `, `1. `, `1) ` → `.listItem`, um bloco por item, com as linhas de continuação indentadas.
+- Linha começando com `|`, ou bloco cuja segunda linha é delimitador de tabela (`|---|:--:|`) → `.table` (linhas consecutivas com `|`, até uma linha que começa cerca, título, citação ou separador).
+- `- `, `* `, `+ `, `1. `, `1) ` → `.listItem`, um bloco por item, com as linhas seguintes que não começam outro bloco. Um bloco com 2+ espaços de indentação logo depois de um item (separado só por linhas em branco) também é `.listItem`. Item numerado só interrompe um parágrafo se o número for 1.
 - `> ` → `.blockQuote` (linhas consecutivas).
 - O resto → `.paragraph` (linhas consecutivas até linha em branco ou início de outro tipo de bloco).
 
 Frases (só em parágrafos), `SentenceSegmenter`:
 
 - Terminadores: `.`, `!`, `?`, `…` e sequências deles (`?!`, `...`), seguidos de fechamentos opcionais (`"`, `'`, `”`, `’`, `)`, `]`, `»`, `*`, `_`) e depois espaço, quebra de linha ou fim do texto.
-- Não divide: dentro de código em linha; depois de abreviação conhecida (lista fixa pt/en: `Sr.`, `Sra.`, `Dr.`, `Dra.`, `Prof.`, `Profa.`, `Eng.`, `Av.`, `Ex.`, `Exa.`, `pág.`, `fig.`, `cap.`, `art.`, `vol.`, `núm.`, `tel.`, `Mr.`, `Mrs.`, `Ms.`, `Jr.`, `St.`, `vs.`, `e.g.`, `i.e.`, `p.ex.`, `cf.`, `aprox.`, `approx.`, `dept.`, `depto.`); depois de inicial (uma letra maiúscula sozinha, como `J. Silva`); depois de sigla com pontos (`U.S.`); quando o terminador é `.` ou `…` e o próximo caractere visível é letra minúscula.
-- A frase é o trecho literal sem espaços nas pontas. Pedaço sem nenhuma letra ou número (`:)`) junta-se à frase anterior (ou à seguinte, se for o primeiro). Parágrafo sem letra ou número tem zero frases.
+- Não divide: dentro de código em linha; depois de abreviação conhecida (lista fixa pt/en: `Sr.`, `Sra.`, `Dr.`, `Dra.`, `Prof.`, `Profa.`, `Eng.`, `Av.`, `Ex.`, `Exa.`, `Srta.`, `pág.`, `pag.`, `fig.`, `cap.`, `art.`, `vol.`, `núm.`, `num.`, `tel.`, `Mr.`, `Mrs.`, `Ms.`, `Jr.`, `St.`, `vs.`, `e.g.`, `i.e.`, `p.ex.`, `cf.`, `aprox.`, `approx.`, `dept.`, `depto.`); depois de inicial (uma letra maiúscula sozinha, como `J. Silva`); depois de sigla com pontos (`U.S.`); quando o terminador é `.` ou `…` e o próximo caractere visível é letra minúscula.
+- A frase é o trecho literal sem espaços nas pontas. Pedaço sem nenhuma palavra, pelo mesmo critério do `WordTokenizer` (`:)`, `1️⃣!`), junta-se à frase anterior (ou à seguinte, se for o primeiro). Parágrafo sem letra ou número tem zero frases.
 
 Limites conhecidos da versão 1: links com ponto no texto do link, ênfase que atravessa frases (`**A. B.**`) e abreviações fora da lista. A avaliação da Fase 2 deve registrar esses casos.
 
@@ -142,8 +151,9 @@ Política `.markup` (texto escrito à mão):
 - `.emptyShort`, `.emptyLong`: forma sem nenhuma palavra.
 - `.shortSpansLines`: forma curta com quebra de linha.
 - `.longOmitsShortWords([String])`: palavras da curta que não aparecem, em ordem, na longa com os aninhados fechados (o que o leitor vê ao abrir). Mesma comparação das âncoras.
-- `.longAddsNothing`: a longa, com aninhados fechados, não acrescenta palavra.
-- `.stretchInHeading`, `.stretchInTable`, `.stretchInCodeBlock`: trecho que começa numa linha de título (`#`), numa linha de tabela (começa com `|`) ou dentro de cerca de código formada por nós de texto. O contexto é o da linha em que o `{{` estaria, com os trechos anteriores abertos.
+- `.longAddsNothing`: a longa, com aninhados fechados, contém a curta mas não acrescenta palavra. Quando a longa omite palavras, só `.longOmitsShortWords` aparece.
+- `.stretchInHeading`, `.stretchInTable`, `.stretchInCodeBlock`: trecho que começa numa linha de título (`#`), numa linha de tabela (começa com `|`) ou dentro de cerca de código formada por nós de texto. O contexto é o da linha em que o `{{` estaria, com os trechos anteriores abertos. Título sublinhado (`===`) e tabela sem `|` no início não são detectados, porque dependem de linhas que vêm depois.
+- Trecho incompleto recebe só `.incomplete` e os problemas de contexto; as regras de conteúdo esperam o trecho chegar inteiro.
 
 Política `.extractive` (documento montado pelo núcleo), além das anteriores:
 
