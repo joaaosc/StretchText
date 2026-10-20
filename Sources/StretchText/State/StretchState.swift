@@ -108,6 +108,17 @@ public struct StretchState: Hashable, Sendable {
         return removed
     }
 
+    /// O que o leitor vê no lugar do trecho: a forma curta, se ele está
+    /// fechado; a longa com os aninhados no estado atual, se está aberto.
+    /// `nil` se o ID não existe.
+    public func visibleText(of id: StretchID) -> String? {
+        guard let stretch = document.stretch(at: id) else { return nil }
+        guard openIDs.contains(id) else { return stretch.shortText }
+        var text = ""
+        StretchDocument.render(stretch.long, parent: id, openIDs: openIDs, into: &text)
+        return text
+    }
+
     /// Âncoras entre a forma curta do trecho e a longa renderizada com os
     /// trechos abertos agora. `nil` se o ID não existe.
     public func anchors(revealing id: StretchID) -> Anchors? {

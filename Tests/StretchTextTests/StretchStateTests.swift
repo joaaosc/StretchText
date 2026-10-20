@@ -419,4 +419,19 @@ struct StretchStateTests {
         let decoded = try JSONDecoder().decode(StretchState.self, from: json(openIDs: ["0"], document: streaming))
         #expect(decoded.visibleText == "Casa gr")
     }
+
+    @Test("visibleText(of:) mostra a curta fechada e a longa aberta, com aninhados no estado atual")
+    func visibleTextOfStretch() throws {
+        let document = try StretchParser.parse("x {{A.|A. {{B.|B e C.}}}} y")
+        var state = StretchState(document: document)
+        let outer = try #require(StretchID("0"))
+        let inner = try #require(StretchID("0.0"))
+        #expect(state.visibleText(of: outer) == "A.")
+        #expect(state.visibleText(of: inner) == "B.")
+        _ = state.toggle(outer)
+        #expect(state.visibleText(of: outer) == "A. B.")
+        _ = state.toggle(inner)
+        #expect(state.visibleText(of: outer) == "A. B e C.")
+        #expect(state.visibleText(of: try #require(StretchID("1"))) == nil)
+    }
 }
