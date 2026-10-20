@@ -5,3 +5,7 @@ DerivedData/
 xcuserdata/
 *.xcuserstate
 Package.resolved
+build/
+*.xcresult
+buildServer.json
+xcodemake_*.log
