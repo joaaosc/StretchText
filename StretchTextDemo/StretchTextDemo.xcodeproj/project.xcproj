@@ -10,6 +10,12 @@
       "Base",
     ],
   },
+  "packages": [
+    {
+      "kind": "local",
+      "path": "../StretchText",
+    },
+  ],
   "files": [
     { "kind": "folder", "path": "StretchTextDemo", "target-membership": [ "StretchTextDemo" ] },
     { "kind": "folder", "path": "StretchTextDemoTests", "target-membership": [ "StretchTextDemoTests" ] },
@@ -34,6 +40,21 @@
         "compile-sources",
         "frameworks",
         "resources",
+      ],
+      "package-product-members": [
+        {
+          "package": "StretchText",
+          "product-name": "StretchText",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "package": "StretchText",
+          "product-name": "StretchTextGeneration",
+          "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "package": "StretchText",
+          "product-name": "StretchTextUI",
+          "build-phase": { "build-phase": "frameworks" },
+        },
       ],
       "build-settings": {
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",

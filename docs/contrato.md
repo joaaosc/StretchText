@@ -227,3 +227,28 @@ O SDK não expõe versão do modelo. A identidade usada no cache é `SystemLangu
 - Conjunto-semente versionado em `StretchText/Evaluation/dataset-v1.json` (20 exemplos sintéticos, pt-BR e en-US, categorias `common`, `edge`, `adversarial`; `knownFailures` vazio até aparecer a primeira falha).
 - Executável `StretchTextEvaluation`: compara com a linha de base, repete cada escolha, confere os gates estruturais (ID pertence ao bloco, montagem aceita, texto de origem intacto, validação extrativa, ida e volta da marcação, decisão determinística com 0/1 frase) e grava `report.json` e `rubric.md` (rubrica humana a preencher).
 - Resultados e rastreio do Instruments: `StretchText/Evaluation/README.md`.
+
+## Fase 3: interface e app de exemplo
+
+### `StretchTextUI`
+
+- `StretchTextView(state: Binding<StretchState>)`: o documento como uma lista de parágrafos (`StretchParagraph.paragraphs(for:)`, lógica sem SwiftUI e testada). Textos fora de trechos são divididos nas linhas em branco; cada trecho de primeiro nível é um parágrafo com o texto visível (`StretchState.visibleText(of:)`).
+- Cada trecho é um `Button`: VoiceOver, Controle por Voz e Acesso Total pelo Teclado funcionam sem código próprio. Valor de acessibilidade: "Só a frase principal" ou "Parágrafo inteiro", com dica do que o toque faz.
+- Estado visível sem depender só da cor: fechado é cor de destaque e sublinhado pontilhado; aberto é texto comum. No Mac, dica de ponteiro.
+- Área de toque: 44 pt no iOS e 28 pt no macOS (HIG). O espaço vertical de cada parágrafo fica dentro da área de toque e cresce com o Dynamic Type (`@ScaledMetric`).
+- "Reduzir movimento": a troca acontece sem animação.
+- Sem Liquid Glass próprio: a HIG reserva o material para controles e navegação; o conteúdo usa texto comum, e os controles padrão já recebem o material.
+- Limite: trechos aninhados aparecem dentro do parágrafo do pai, no estado em que estão, sem botão próprio. Texto em Markdown é mostrado literalmente.
+
+### App `StretchTextDemo`
+
+- Um alvo multiplataforma (iOS e macOS 27, Swift 6, App Sandbox no Mac), uma tela: seletor "Primeira frase" / "Modelo do aparelho", aviso de falha e o texto de exemplo.
+- No modo do modelo: `KeySentenceFolder` com `CachingKeySentencePicker(base: ModelKeySentencePicker())`, política `.useFirstSentence` e limite de 60 s. Se o modelo não escolher, o aviso mostra o motivo em português e a primeira frase é usada.
+- Projeto em JSON (`project.xcproj`), alterado só por `xcrun xcodeproj`; o formatador não mostra diferença.
+
+### Evidência e pendências da Fase 3 (2026-10-20)
+
+- Mac (macOS 27.2): testes de unidade do app e os três testes de interface passam, inclusive o modo "Modelo do aparelho", que mostrou a frase escolhida pelo modelo dentro do App Sandbox. Previews claras e escuras conferidas.
+- iPhone 17 (simulador iOS 27.2): os testes de abrir e recolher e de texto no maior tamanho de acessibilidade passaram com o espaçamento anterior; as capturas mostraram o problema de espaçamento que foi corrigido depois.
+- Pendente: rodar de novo os testes de interface no simulador com o espaçamento novo e o teste do modo do modelo (adiado porque o simulador pesava demais na máquina); testar num aparelho real. Num iPhone sem Apple Intelligence (por exemplo, iPhone 11), o modo do modelo deve mostrar o aviso "este aparelho não tem o modelo" e usar a primeira frase.
+- Não verificado em execução: VoiceOver lendo a tela de verdade (só a árvore de acessibilidade foi conferida) e "Reduzir movimento" ligado.
