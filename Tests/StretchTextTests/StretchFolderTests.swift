@@ -350,6 +350,7 @@ struct StretchFolderTests {
                 case .noSentence: #expect(segment.kind == .paragraph && segment.sentences.isEmpty)
                 case .singleSentence: #expect(segment.kind == .paragraph && segment.sentences.count == 1)
                 case .noChoice: Issue.record("a linha de base escolhe para todo bloco dobrável")
+                case .selectionFailed: Issue.record("a linha de base não registra falhas")
                 }
             }
         }
@@ -392,4 +393,33 @@ struct StretchFolderTests {
         #expect(!english.document.collapsedText.contains("It is fast!"))
         #expect(english.document.collapsedText.contains("Note: see fig. 3 for details.\n"))
     }
+
+    @Test("Falha registrada deixa o bloco igual e guarda o motivo")
+    func failureIsRecorded() throws {
+        let segmentation = Self.sampleSegmentation
+        let fallback = SentenceChoice(
+            sentenceID: segmentation.segments[10].sentences[0].id,
+            source: .firstSentenceAfterFailure(.modelTimeout)
+        )
+        let result = try StretchFolder.fold(segmentation, choices: [10: fallback], failures: [0: .unsupportedLocale("xx")])
+        #expect(result.decisions[0] == .unchanged(segment: 0, reason: .selectionFailed(.unsupportedLocale("xx"))))
+        #expect(result.decisions[10] == .folded(segment: 10, stretch: try #require(StretchID("0")), choice: fallback))
+        #expect(result.document.expandedText == Self.sample)
+    }
+
+    @Test("Falhas são conferidas como as escolhas")
+    func failuresAreValidated() {
+        let segmentation = Self.sampleSegmentation
+        let choice = SentenceChoice(sentenceID: segmentation.segments[0].sentences[0].id, source: .model)
+        #expect(throws: FoldError.unknownSegment(99)) {
+            try StretchFolder.fold(segmentation, choices: [:], failures: [99: .refusal])
+        }
+        #expect(throws: FoldError.segmentNotFoldable(2)) {
+            try StretchFolder.fold(segmentation, choices: [:], failures: [2: .refusal])
+        }
+        #expect(throws: FoldError.choiceAndFailureForSegment(0)) {
+            try StretchFolder.fold(segmentation, choices: [0: choice], failures: [0: .refusal])
+        }
+    }
+
 }

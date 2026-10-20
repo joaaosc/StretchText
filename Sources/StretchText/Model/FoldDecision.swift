@@ -2,6 +2,15 @@
 public enum SelectionSource: Hashable, Sendable, Codable {
     /// Linha de base determinística: a primeira frase do bloco.
     case firstSentence
+    /// Decisão determinística: o bloco tem uma frase só.
+    case onlySentence
+    /// O modelo do aparelho escolheu agora, e a escolha foi conferida.
+    case model
+    /// Escolha do modelo conferida antes e reaproveitada do cache.
+    case cache
+    /// A escolha falhou e a política aplicou a primeira frase. O motivo fica
+    /// guardado: a linha de base nunca se passa por escolha do modelo.
+    case firstSentenceAfterFailure(KeySentenceFailure)
 }
 
 /// A frase escolhida para a forma curta de um bloco.
@@ -26,6 +35,8 @@ public enum UnchangedReason: Hashable, Sendable, Codable {
     case singleSentence
     /// Parágrafo elegível para o qual nenhuma escolha foi fornecida.
     case noChoice
+    /// A escolha falhou e a política deixou o bloco como estava.
+    case selectionFailed(KeySentenceFailure)
 }
 
 /// O que aconteceu com cada bloco ao montar o documento.
@@ -61,4 +72,6 @@ public enum FoldError: Error, Hashable, Sendable {
     case segmentNotFoldable(Int)
     /// A frase não pertence ao bloco indicado.
     case sentenceNotInSegment(SentenceID, segment: Int)
+    /// O mesmo bloco recebeu uma escolha e uma falha.
+    case choiceAndFailureForSegment(Int)
 }
