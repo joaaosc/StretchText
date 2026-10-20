@@ -9,10 +9,13 @@ let package = Package(
     ],
     products: [
         .library(name: "StretchText", targets: ["StretchText"]),
+        .library(name: "StretchTextGeneration", targets: ["StretchTextGeneration"]),
     ],
     targets: [
         .target(name: "StretchText"),
+        .target(name: "StretchTextGeneration", dependencies: ["StretchText"]),
         .testTarget(name: "StretchTextTests", dependencies: ["StretchText"]),
+        .testTarget(name: "StretchTextGenerationTests", dependencies: ["StretchTextGeneration"]),
     ],
     swiftLanguageModes: [.v6]
 )
