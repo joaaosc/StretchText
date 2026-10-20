@@ -67,6 +67,33 @@ let extractive = StretchValidator.validate(result.document, policy: .extractive)
 
 Cada problema traz o trecho, o tipo (por exemplo, `longOmitsShortWords`, `stretchInHeading`) e, quando o documento veio do parser, a linha e a coluna.
 
+## Interface em SwiftUI
+
+O produto `StretchTextUI` mostra o documento como parágrafos. Cada trecho é um botão: fechado, aparece a frase principal na cor de destaque e com sublinhado pontilhado; tocado ou clicado, aparece o parágrafo inteiro no mesmo lugar.
+
+```swift
+import StretchText
+import StretchTextUI
+import SwiftUI
+
+let texto = "O build falha às vezes. O motivo é um cache que usa só o package.json como chave."
+
+struct Leitura: View {
+    @State private var state = StretchState(
+        document: StretchFolder.foldWithFirstSentence(TextSegmenter.segment(texto)).document
+    )
+
+    var body: some View {
+        ScrollView {
+            StretchTextView(state: $state)
+                .padding()
+        }
+    }
+}
+```
+
+Funciona com VoiceOver (o estado é lido como "Só a frase principal" ou "Parágrafo inteiro"), teclado, Controle por Voz e Dynamic Type. Com "Reduzir movimento", a troca acontece sem animação. Trechos aninhados aparecem dentro do parágrafo do pai, sem botão próprio.
+
 ## Escolha da frase pelo modelo do aparelho (opcional)
 
 O produto `StretchTextGeneration` usa o Foundation Models para escolher, entre as frases que já existem no parágrafo, a que melhor resume o bloco. O modelo só devolve o rótulo de uma frase oferecida; as formas curta e longa continuam sendo texto literal do autor.

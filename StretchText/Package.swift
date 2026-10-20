@@ -10,10 +10,12 @@ let package = Package(
     products: [
         .library(name: "StretchText", targets: ["StretchText"]),
         .library(name: "StretchTextGeneration", targets: ["StretchTextGeneration"]),
+        .library(name: "StretchTextUI", targets: ["StretchTextUI"]),
     ],
     targets: [
         .target(name: "StretchText"),
         .target(name: "StretchTextGeneration", dependencies: ["StretchText"]),
+        .target(name: "StretchTextUI", dependencies: ["StretchText"]),
         .executableTarget(
             name: "StretchTextEvaluation",
             dependencies: ["StretchText", "StretchTextGeneration"],
@@ -21,6 +23,7 @@ let package = Package(
         ),
         .testTarget(name: "StretchTextTests", dependencies: ["StretchText"]),
         .testTarget(name: "StretchTextGenerationTests", dependencies: ["StretchTextGeneration"]),
+        .testTarget(name: "StretchTextUITests", dependencies: ["StretchTextUI"]),
     ],
     swiftLanguageModes: [.v6]
 )
