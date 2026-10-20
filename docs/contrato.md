@@ -170,7 +170,9 @@ Política `.extractive` (documento montado pelo núcleo), além das anteriores:
 - Segmentação: cada tipo de bloco, partição exata da origem, CRLF, zero/uma/várias frases, abreviações, iniciais, decimais, reticências, aspas, código em linha, português e inglês.
 - Montagem e validação: documento montado nunca altera a longa (`expandedText == source`), escolhas inválidas lançam erro, cada decisão `.unchanged`, cada problema do validador aparecendo e não aparecendo.
 
-## Fase 2: o que já fica decidido
+## Fase 2: escolha da frase-chave pelo modelo (`StretchTextGeneration`)
+
+### Disponibilidade no SDK
 
 Disponibilidade conferida no SDK 27.2 (`FoundationModels.swiftinterface`):
 
@@ -187,4 +189,41 @@ Disponibilidade conferida no SDK 27.2 (`FoundationModels.swiftinterface`):
 
 Como o alvo mínimo é 27.0, nenhum desses símbolos precisa de `if #available`. `LanguageModelError` é `@nonexhaustive`: o mapeamento para categorias próprias precisa de um caso `@unknown default` que vire uma categoria tipada, nunca sucesso.
 
-O `SelectionSource` ganhará casos para modelo, cache e linha de base aplicada depois de falha (com o motivo). A chave de cache incluirá: hash do conteúdo do bloco, locale efetivo, `TextSegmenter.version`, versão do prompt, versão do esquema, configuração de geração e guardrails, identidade pública do modelo quando houver e a versão do sistema.
+O SDK não expõe versão do modelo. A identidade usada no cache é `SystemLanguageModel.general` mais `ProcessInfo.operatingSystemVersionString` (com o número de build). Atualização de modelo sem atualização do sistema não seria detectada; registrar isso se aparecer.
+
+### Tipos no núcleo (sem `import FoundationModels`)
+
+- `SelectionSource`: `.firstSentence`, `.onlySentence`, `.model`, `.cache`, `.firstSentenceAfterFailure(KeySentenceFailure)`.
+- `KeySentenceFailure`: categorias estáveis (`modelUnavailable(ModelUnavailability)`, `unsupportedLocale(String)`, `contextSizeExceeded(tokenCount:contextSize:)`, `tooManySentences(count:limit:)`, `rateLimited`, `guardrailViolation`, `refusal`, `modelTimeout`, `deadlineExceeded`, `cancelled`, `concurrentRequests`, `unsupportedCapability`, `unsupportedTranscriptContent`, `unsupportedGenerationGuide`, `transcriptMutationWhileResponding`, `unparseableOutput`, `invalidChoice`, `invalidDecision`, `unexpectedError(String)`). Nenhum caso guarda texto do documento nem da resposta do modelo; `unexpectedError` guarda só o nome do tipo. `rateLimited` descarta o `resetDate` do framework.
+- `UnchangedReason.selectionFailed(KeySentenceFailure)` e `StretchFolder.fold(_:choices:failures:)`, que confere as falhas como confere as escolhas (`FoldError.choiceAndFailureForSegment`).
+
+### Seletor
+
+- `KeySentencePicker` (sem `associatedtype`): `pick(from: [Sentence], locale:) async -> KeySentenceDecision` (`.selected(sentenceID:source:)`, `.noEligibleSentence`, `.failed(KeySentenceFailure)`).
+- `ModelKeySentencePicker`, na ordem: 0 frases → `.noEligibleSentence`; 1 frase → `.onlySentence` (nos dois casos sem tocar no modelo); mais de `maximumSentenceCount` frases (padrão 120; cada rótulo custa cerca de 6,5 tokens no esquema) → `.tooManySentences`; cancelamento; `availability`; `supportsLocale`; e, dentro do prazo, contagem de tokens (instruções + prompt + esquema) mais a reserva da resposta (64) contra `contextSize`, sem gerar se não couber, e a geração; por fim, o rótulo é conferido.
+- Pedido (prompt versão 1): instruções fixas em inglês, sem nenhum texto do documento. O prompt lista as frases como `S1: "<texto como string JSON>"`, para que aspas, quebras de linha e ordens dentro do texto fiquem como dado citado.
+- Esquema (versão 1): `DynamicGenerationSchema` com uma propriedade `sentence` restrita por `anyOf` aos rótulos `S1…Sn`. A resposta ainda é conferida localmente: rótulo fora da lista → `.invalidChoice`.
+- Geração: `SystemLanguageModel(useCase: .general, guardrails: .default)`, `GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 32)`. A resposta usa cerca de 15 tokens. Sem Tool Calling, sem `permissiveContentTransformations`, sem PCC.
+- Sessão: uma `LanguageModelSession` nova por escolha. `prewarm()` cria uma sessão aquecida que é usada uma única vez, pela escolha seguinte. Melhor esforço, sem promessa de latência.
+- Prazo: a contagem de tokens e a geração correm juntas contra `Configuration.timeout` (padrão 30 s) num grupo de tarefas. Quem perde é cancelado e o grupo espera o fim dele, para que nenhuma geração abandonada continue. Prazo esgotado → `.deadlineExceeded`; tarefa cancelada → `.cancelled`.
+- Erros do framework → `KeySentenceFailure` (casos `@unknown default` viram `.unexpectedError`, nunca sucesso). Se o runtime ainda lançar o `GenerationError` descontinuado, ele cai em `.unexpectedError` com o nome do tipo: tipado, mas sem categoria própria.
+- Identidade para o cache: versões do prompt e do esquema; `generation` com amostragem, limite da resposta, caso de uso e guardrails (vindos da mesma ponte que configura o modelo) e os 12 primeiros dígitos do SHA-256 das instruções, fixados em teste; `model` com a versão do sistema.
+- `pickWithMetrics` devolve também tokens contados, tokens informados pela resposta e tempos.
+- Log (`os.Logger`, subsistema `StretchText`): só índice da frase e categoria da origem ou da falha.
+
+### Cache
+
+- `KeySentenceCacheKey`: SHA-256 do texto das frases (cada uma com o tamanho em 8 bytes antes), locale BCP 47, `TextSegmenter.version` e a identidade do seletor (`promptVersion`, `schemaVersion`, configuração de geração, modelo). O `SentenceID` não entra: o mesmo parágrafo em outra posição reaproveita a decisão.
+- `KeySentenceCache` (ator, em memória) guarda o índice da frase e o número de frases. Persistir é decisão do consumidor (`entries`/`init(entries:)`); entrada incoerente é removida na leitura.
+- `CachingKeySentencePicker`: menos de 2 frases não passa pelo cache; acerto sai como `.cache`; só `.selected(_, .model)` é gravado. Tarefa cancelada durante a consulta devolve `.cancelled` e não grava, mesmo que o seletor base tenha respondido. Chamadas simultâneas com a mesma chave não são unidas, e o cache não tem limite de tamanho.
+- Este cache de decisões é separado do cache interno da sessão do framework; um não substitui o outro.
+
+### Montagem com o modelo
+
+- `KeySentenceFolder(picker:policy:timeLimit:)` consulta os blocos dobráveis em ordem, um de cada vez. Com `timeLimit`, os blocos que sobram depois do limite não são consultados e recebem `.deadlineExceeded`, tratada pela política. Política explícita para falhas: `.useFirstSentence` (origem `.firstSentenceAfterFailure(motivo)`) ou `.leaveUnchanged` (motivo em `UnchangedReason.selectionFailed`). Decisão incoerente → `.invalidDecision`. Cancelamento → `KeySentenceFoldError.cancelled`, sem resultado parcial. As decisões cruas do seletor ficam em `pickerDecisions`.
+
+### Avaliação
+
+- Conjunto-semente versionado em `StretchText/Evaluation/dataset-v1.json` (20 exemplos sintéticos, pt-BR e en-US, categorias `common`, `edge`, `adversarial`; `knownFailures` vazio até aparecer a primeira falha).
+- Executável `StretchTextEvaluation`: compara com a linha de base, repete cada escolha, confere os gates estruturais (ID pertence ao bloco, montagem aceita, texto de origem intacto, validação extrativa, ida e volta da marcação, decisão determinística com 0/1 frase) e grava `report.json` e `rubric.md` (rubrica humana a preencher).
+- Resultados e rastreio do Instruments: `StretchText/Evaluation/README.md`.
