@@ -1,4 +1,5 @@
 import Foundation
+import StretchText
 import SwiftUI
 import Testing
 @testable import StretchTextUI
@@ -31,6 +32,18 @@ struct StretchMarkdownTests {
     func unmatchedEmphasis() {
         #expect(String(MarkdownInline.attributed("5 * 3 = 15").characters) == "5 * 3 = 15")
         #expect(String(MarkdownInline.attributed("**aberto").characters) == "**aberto")
+    }
+
+    @Test("Espaço entre blocos: nenhum no primeiro, menor entre itens de lista seguidos")
+    func blockSpacing() {
+        let style = StretchMarkdownStyle(blockSpacing: 12)
+        let paragraph = ReadingBlock(id: 0, kind: .paragraph, text: "a")
+        let item = ReadingBlock(id: 1, kind: .listItem(marker: .bullet, depth: 0), text: "b")
+        let next = ReadingBlock(id: 2, kind: .listItem(marker: .ordered(2), depth: 1), text: "c")
+        #expect(style.spacing(before: paragraph, after: nil) == 0)
+        #expect(style.spacing(before: item, after: paragraph) == 12)
+        #expect(style.spacing(before: next, after: item) == 4)
+        #expect(style.spacing(before: paragraph, after: next) == 12)
     }
 
     @Test("Título usa a fonte do nível; fora da lista, a mais próxima; sem títulos, a do corpo")

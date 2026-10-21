@@ -35,9 +35,11 @@ public struct StretchMarkdownView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: style.blockSpacing) {
-            ForEach(ReadingBlock.blocks(for: result, state: state)) { block in
+        let blocks = ReadingBlock.blocks(for: result, state: state)
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
                 MarkdownBlockView(block: block, isInteractive: isInteractive, onToggle: toggle)
+                    .padding(.top, style.spacing(before: block, after: index > 0 ? blocks[index - 1] : nil))
             }
         }
         .font(style.body)

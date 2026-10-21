@@ -1,3 +1,4 @@
+import StretchText
 import SwiftUI
 
 /// Fontes e espaçamento de ``StretchMarkdownView``.
@@ -37,6 +38,16 @@ public struct StretchMarkdownStyle: Sendable {
         guard let last = headings.last else { return body }
         let index = min(max(level, 1), headings.count) - 1
         return index < headings.count ? headings[index] : last
+    }
+
+    /// Espaço acima de `block`: nenhum no primeiro bloco e um terço do normal
+    /// entre itens de lista seguidos, para a lista continuar parecendo uma só.
+    func spacing(before block: ReadingBlock, after previous: ReadingBlock?) -> Double {
+        guard let previous else { return 0 }
+        if case .listItem = block.kind, case .listItem = previous.kind {
+            return blockSpacing / 3
+        }
+        return blockSpacing
     }
 }
 
