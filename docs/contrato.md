@@ -238,7 +238,25 @@ O SDK não expõe versão do modelo. A identidade usada no cache é `SystemLangu
 - Área de toque: 44 pt no iOS e 28 pt no macOS (HIG). O espaço vertical de cada parágrafo fica dentro da área de toque e cresce com o Dynamic Type (`@ScaledMetric`).
 - "Reduzir movimento": a troca acontece sem animação.
 - Sem Liquid Glass próprio: a HIG reserva o material para controles e navegação; o conteúdo usa texto comum, e os controles padrão já recebem o material.
-- Limite: trechos aninhados aparecem dentro do parágrafo do pai, no estado em que estão, sem botão próprio. Texto em Markdown é mostrado literalmente.
+- Limite: trechos aninhados aparecem dentro do parágrafo do pai, no estado em que estão, sem botão próprio. Texto em Markdown é mostrado literalmente; para formatação, use `StretchMarkdownView`.
+
+### Leitura em Markdown
+
+Adicionada para o Mural; o `StretchTextView` não muda.
+
+- Núcleo: `ReadingBlock.blocks(for: FoldResult, state: StretchState)` devolve um bloco por `Segment` que não é `.blank`, em ordem. O tipo vem do segmentador: `.paragraph`, `.heading(level:)`, `.listItem(marker:depth:)`, `.blockQuote`, `.codeBlock(language:)`, `.table`, `.thematicBreak`. O texto é o conteúdo sem a marcação de bloco:
+  - título: sem os `#` de abertura e de fechamento (os de fechamento só quando vêm depois de espaço); no sublinhado, as linhas de cima, e o nível é 1 para `=` e 2 para `-`;
+  - item: sem a indentação, o marcador e os espaços depois dele. Marcadores: `.bullet` (`-`, `*`, `+`), `.ordered(n)` (`n.` ou `n)`) e `.task(isDone:)` (`- [ ]`, `- [x]`, `- [X]`). As linhas de continuação perdem a indentação. `depth` é a indentação da primeira linha dividida por 2; a continuação indentada de um item (sem marcador) fica um nível antes, alinhada ao texto do item;
+  - citação: sem a indentação, o `>` e um espaço depois dele, em cada linha;
+  - código cercado: sem a linha de abertura e, se houver, sem a de fechamento; `language` é a primeira palavra depois da cerca. Código indentado: até 4 colunas a menos em cada linha (tab conta como no segmentador);
+  - tabela: as linhas como estão; separador: texto vazio.
+- Parágrafo dobrado: o texto é `state.visibleText(of:)` e o bloco traz o `StretchID` e se está aberto. Se o trecho não existir no estado, o bloco aparece inteiro, como parágrafo comum.
+- As linhas dentro de um bloco são unidas por `\n`; a formatação em linha fica no texto.
+- Interface: `StretchMarkdownView(result:state:)` mostra os blocos. Formatação em linha com `AttributedString(markdown:)`, sintaxe `.inlineOnlyPreservingWhitespace` e `failurePolicy: .returnPartiallyParsedIfPossible`; se a leitura falhar, o texto aparece literal. Títulos com a característica de acessibilidade de cabeçalho. Itens com o marcador numa coluna (tarefa com `checkmark.square`/`square` e rótulo "Feito"/"A fazer"). Citação com barra lateral. Código e tabela em fonte monoespaçada com fundo. Separador como `Divider`.
+- Cada parágrafo dobrado usa o mesmo botão do `StretchTextView`, com a mesma acessibilidade, área de toque mínima e "Reduzir movimento". O espaço entre blocos vem do estilo, não do botão.
+- `StretchMarkdownView(result:state:)` com `StretchState` em vez de `Binding` é só leitura: os trechos aparecem no estado dado, como texto comum, sem botão (miniaturas).
+- Estilo: `StretchMarkdownStyle` (fontes do corpo, dos títulos por nível e do código; espaço entre blocos; recuo), trocado pelo ambiente com `.stretchMarkdownStyle(_:)`. O espaço entre linhas segue o `lineSpacing` do ambiente.
+- Limites: tabela não é desenhada como grade; links e imagens em Markdown aparecem só como texto formatado em linha (o link pode ser aberto fora de um trecho); listas não continuam a numeração sozinhas, cada item mostra o número escrito.
 
 ### App `StretchTextDemo`
 
