@@ -27,7 +27,7 @@ public struct StretchTextView: View {
                         .padding(.vertical, rowPadding)
                         .frame(maxWidth: .infinity, minHeight: StretchTextMetrics.minimumRowHeight, alignment: .leading)
                 case .stretch(let id, let isOpen):
-                    StretchParagraphButton(text: paragraph.text, isOpen: isOpen, verticalPadding: rowPadding) {
+                    StretchParagraphButton(label: Text(verbatim: paragraph.text), isOpen: isOpen, verticalPadding: rowPadding) {
                         toggle(id)
                     }
                     .accessibilityIdentifier("stretch-\(id)")

@@ -4,7 +4,8 @@ import SwiftUI
 /// de destaque e com sublinhado pontilhado, como um link; aberto, o parágrafo
 /// inteiro como texto comum. O estado não depende só da cor.
 struct StretchParagraphButton: View {
-    let text: String
+    /// O texto visível agora, já com a formatação que a tela quiser.
+    let label: Text
     let isOpen: Bool
     /// Fica dentro da área de toque.
     let verticalPadding: Double
@@ -12,7 +13,7 @@ struct StretchParagraphButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text(verbatim: text)
+            label
                 .underline(!isOpen, pattern: .dot)
                 .multilineTextAlignment(.leading)
                 .padding(.vertical, verticalPadding)
