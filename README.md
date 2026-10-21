@@ -94,6 +94,23 @@ struct Leitura: View {
 
 Funciona com VoiceOver (o estado é lido como "Só a frase principal" ou "Parágrafo inteiro"), teclado, Controle por Voz e Dynamic Type. Com "Reduzir movimento", a troca acontece sem animação. Trechos aninhados aparecem dentro do parágrafo do pai, sem botão próprio.
 
+### Com formatação de Markdown
+
+`StretchMarkdownView` mostra o mesmo resultado com títulos, listas, citações e código formatados; os parágrafos dobrados continuam abrindo no lugar. As fontes vêm do ambiente:
+
+```swift
+StretchMarkdownView(result: result, state: $state)
+    .stretchMarkdownStyle(StretchMarkdownStyle(body: .system(.title3, design: .serif)))
+```
+
+Sem `Binding`, a view só mostra o estado dado, sem botões (bom para miniaturas):
+
+```swift
+StretchMarkdownView(result: result, state: state)
+```
+
+`ReadingBlock.blocks(for:state:)`, no núcleo, entrega os blocos com o tipo e o texto sem a marcação, para quem quiser desenhar a própria tela.
+
 ## Escolha da frase pelo modelo do aparelho (opcional)
 
 O produto `StretchTextGeneration` usa o Foundation Models para escolher, entre as frases que já existem no parágrafo, a que melhor resume o bloco. O modelo só devolve o rótulo de uma frase oferecida; as formas curta e longa continuam sendo texto literal do autor.
