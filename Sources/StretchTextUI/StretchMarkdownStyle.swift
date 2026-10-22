@@ -42,6 +42,7 @@ public struct StretchMarkdownStyle: Sendable {
 
     /// Espaço acima de `block`: nenhum no primeiro bloco e um terço do normal
     /// entre itens de lista seguidos, para a lista continuar parecendo uma só.
+    /// Nos demais, inclusive o bloco de imagem, o espaço é o mesmo do parágrafo.
     func spacing(before block: ReadingBlock, after previous: ReadingBlock?) -> Double {
         guard let previous else { return 0 }
         if case .listItem = block.kind, case .listItem = previous.kind {

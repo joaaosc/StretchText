@@ -42,6 +42,8 @@ struct MarkdownBlockView: View {
                 .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: style.indent / 3))
         case .thematicBreak:
             Divider()
+        case .image(let image):
+            MarkdownImageView(image: image)
         }
     }
 }
