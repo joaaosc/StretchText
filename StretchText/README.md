@@ -123,6 +123,17 @@ let imagens = TextSegmenter.segment(markdown).segments
     .compactMap { MarkdownImage.parse($0.text) }
 ```
 
+Na leitura interativa, o leitor pode marcar uma tarefa (`- [ ]`, `- [x]`) clicando nela: a linha inteira, caixa e texto, vira um botão, com o rótulo do item e o valor "Feita" ou "A fazer" para o VoiceOver. O pacote não muda o texto nem guarda nada: `.stretchMarkdownTaskToggle` chama o app com o índice do bloco (`ReadingBlock.id`), e `Segmentation.togglingTask(inSegment:)` devolve o texto de origem com a caixa trocada (`[ ]` vira `[x]`; `[x]` e `[X]` viram `[ ]`), ou `nil` se o bloco não for uma tarefa. Só a letra entre os colchetes muda, então os blocos e as posições continuam os mesmos. Nas miniaturas (sem `Binding`) e sem esta ação, a tarefa continua só desenho:
+
+```swift
+StretchMarkdownView(result: result, state: $state)
+    .stretchMarkdownTaskToggle { segment in
+        if let novo = result.segmentation.togglingTask(inSegment: segment) {
+            salvar(novo)   // o app grava o texto novo e monta o resultado de novo
+        }
+    }
+```
+
 `ReadingBlock.blocks(for:state:)`, no núcleo, entrega os blocos com o tipo e o texto sem a marcação, para quem quiser desenhar a própria tela; a imagem chega como `.image(MarkdownImage)`.
 
 ## Escolha da frase pelo modelo do aparelho (opcional)
