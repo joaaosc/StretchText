@@ -118,8 +118,22 @@ public struct ReadingBlock: Hashable, Sendable, Identifiable {
     private static func listItem(_ lines: [Substring]) -> (kind: Kind, text: String) {
         let first = lines[0]
         let columns = indentationColumns(of: first)
+        let parsed = firstLine(first)
+
+        // A continuação indentada pertence ao item de cima: fica um nível antes.
+        let depth = parsed.marker == nil ? max(0, columns / 2 - 1) : columns / 2
+        let continuation = lines.dropFirst().map { String($0.drop(while: isSpaceOrTab)) }
+        let text = ([String(parsed.rest)] + continuation).joined(separator: "\n")
+        return (.listItem(marker: parsed.marker, depth: depth), text)
+    }
+
+    /// A primeira linha de um item: o marcador, o resto do texto depois dele e,
+    /// se for tarefa, a posição do caractere entre os colchetes. É a única regra
+    /// de "o que é tarefa", usada para desenhar e para trocar a caixa.
+    private static func firstLine(_ first: Substring) -> (marker: ListMarker?, rest: Substring, box: Substring.Index?) {
         var rest = first.drop(while: isSpaceOrTab)
         var marker: ListMarker?
+        var box: Substring.Index?
 
         if let symbol = rest.first, symbol == "-" || symbol == "*" || symbol == "+",
             rest.dropFirst().first.map(isSpaceOrTab) == true
@@ -139,14 +153,18 @@ public struct ReadingBlock: Hashable, Sendable, Identifiable {
         rest = rest.drop(while: isSpaceOrTab)
         if marker == .bullet, let isDone = taskState(rest) {
             marker = .task(isDone: isDone)
+            box = rest.index(after: rest.startIndex)
             rest = rest.dropFirst(3).drop(while: isSpaceOrTab)
         }
+        return (marker, rest, box)
+    }
 
-        // A continuação indentada pertence ao item de cima: fica um nível antes.
-        let depth = marker == nil ? max(0, columns / 2 - 1) : columns / 2
-        let continuation = lines.dropFirst().map { String($0.drop(while: isSpaceOrTab)) }
-        let text = ([String(rest)] + continuation).joined(separator: "\n")
-        return (.listItem(marker: marker, depth: depth), text)
+    /// Deslocamento, em bytes UTF-8 dentro de `text`, do caractere entre os
+    /// colchetes da tarefa na primeira linha do item; `nil` se não for tarefa.
+    static func taskBoxOffset(inListItem text: String) -> Int? {
+        let end = text.firstIndex(where: \.isNewline) ?? text.endIndex
+        guard let box = firstLine(text[..<end]).box else { return nil }
+        return text.utf8.distance(from: text.startIndex, to: box)
     }
 
     /// `[ ]`, `[x]` ou `[X]` seguido de espaço ou do fim do item.
@@ -236,5 +254,27 @@ public struct ReadingBlock: Hashable, Sendable, Identifiable {
             rest = rest.dropFirst()
         }
         return String(rest)
+    }
+}
+
+extension Segmentation {
+    /// O texto de origem com a tarefa do bloco `id` trocada: `[ ]` vira `[x]`; `[x]` e `[X]` viram `[ ]`.
+    /// Só a letra entre os colchetes muda, então os blocos, as posições e as frases continuam os mesmos.
+    /// - Returns: `nil` se o bloco não existe ou não é um item de tarefa.
+    public func togglingTask(inSegment id: Int) -> String? {
+        guard segments.indices.contains(id) else { return nil }
+        let segment = segments[id]
+        guard segment.kind == .listItem, let offset = ReadingBlock.taskBoxOffset(inListItem: segment.text) else {
+            return nil
+        }
+        var bytes = Array(source.utf8)
+        let position = segment.utf8Range.lowerBound + offset
+        guard bytes.indices.contains(position) else { return nil }
+        switch bytes[position] {
+        case UInt8(ascii: " "): bytes[position] = UInt8(ascii: "x")
+        case UInt8(ascii: "x"), UInt8(ascii: "X"): bytes[position] = UInt8(ascii: " ")
+        default: return nil
+        }
+        return String(decoding: bytes, as: UTF8.self)
     }
 }
