@@ -10,6 +10,10 @@ import SwiftUI
 /// ``StretchMarkdownStyle``, pelo ambiente. Cada trecho é um botão, com os
 /// mesmos rótulos de acessibilidade de ``StretchTextView``; com "Reduzir
 /// movimento" ligado, a troca acontece sem animação.
+///
+/// Uma linha só com `![alt](origem)` é um bloco de imagem, que nunca dobra. O
+/// app a desenha com ``SwiftUI/View/stretchMarkdownImage(_:)``; sem isso, o
+/// bloco mostra o texto alternativo.
 public struct StretchMarkdownView: View {
     private let result: FoldResult
     @Binding private var state: StretchState
@@ -97,6 +101,29 @@ public struct StretchMarkdownView: View {
     .padding()
 }
 
+#Preview("Imagem desenhada pelo app") {
+    @Previewable @State var state = StretchState(document: StretchMarkdownView.previewImageResult.document)
+    ScrollView {
+        StretchMarkdownView(result: StretchMarkdownView.previewImageResult, state: $state)
+            .stretchMarkdownImage { image in
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.teal.gradient)
+                    .frame(height: 140)
+                    .overlay { Text(verbatim: image.source).font(.caption).foregroundStyle(.white) }
+                    .accessibilityLabel(image.alt)
+            }
+            .padding()
+    }
+}
+
+#Preview("Imagem sem desenhista") {
+    @Previewable @State var state = StretchState(document: StretchMarkdownView.previewImageResult.document)
+    ScrollView {
+        StretchMarkdownView(result: StretchMarkdownView.previewImageResult, state: $state)
+            .padding()
+    }
+}
+
 extension StretchMarkdownView {
     /// Texto de exemplo das previews, dobrado pela primeira frase.
     static let previewResult = StretchFolder.foldWithFirstSentence(TextSegmenter.segment("""
@@ -116,6 +143,17 @@ extension StretchMarkdownView {
         ```
 
         Uma frase só fica como está.
+        """))
+
+    /// Texto de exemplo das previews com imagens, dobrado pela primeira frase.
+    static let previewImageResult = StretchFolder.foldWithFirstSentence(TextSegmenter.segment("""
+        A planta nova mudou a cozinha. O balcão agora fica sob a janela.
+
+        ![Planta da cozinha](planta.png)
+
+        A foto mostra o resultado. Ainda falta pintar a parede norte.
+
+        ![](<foto do balcão.png> "Balcão sob a janela")
         """))
 
     static func previewState(openingFirst: Bool) -> StretchState {

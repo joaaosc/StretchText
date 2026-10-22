@@ -27,7 +27,7 @@ result.document.expandedText    // igual a `markdown`, sempre
 result.decisions                // uma decisão por bloco, com o motivo quando nada mudou
 ```
 
-Só parágrafos com duas frases ou mais viram trecho. Títulos, listas, tabelas, citações e código ficam como estão. A forma longa é o parágrafo literal; a curta é uma frase literal dele.
+Só parágrafos com duas frases ou mais viram trecho. Títulos, listas, tabelas, citações, imagens e código ficam como estão. A forma longa é o parágrafo literal; a curta é uma frase literal dele.
 
 Para escolher outra frase, passe as escolhas por bloco. Escolha inválida lança `FoldError`:
 
@@ -109,7 +109,21 @@ Sem `Binding`, a view só mostra o estado dado, sem botões (bom para miniaturas
 StretchMarkdownView(result: result, state: state)
 ```
 
-`ReadingBlock.blocks(for:state:)`, no núcleo, entrega os blocos com o tipo e o texto sem a marcação, para quem quiser desenhar a própria tela.
+Uma linha só com `![texto](arquivo.png)` é um bloco de imagem: nunca dobra e, sem mais nada, aparece como o texto alternativo com um ícone. O pacote não abre arquivos nem rede; quem desenha a imagem é o app, que recebe o `MarkdownImage` (`alt`, `source` e `title`) e resolve o arquivo, também nas miniaturas. `MarkdownImage.parse(_:)` aplica a mesma regra a uma linha avulsa; para listar as imagens de um texto, use os blocos `.image` da segmentação, que deixam de fora as que estão em código:
+
+```swift
+StretchMarkdownView(result: result, state: $state)
+    .stretchMarkdownImage { image in
+        MinhaImagem(nome: image.source)
+            .accessibilityLabel(image.alt)
+    }
+
+let imagens = TextSegmenter.segment(markdown).segments
+    .filter { $0.kind == .image }
+    .compactMap { MarkdownImage.parse($0.text) }
+```
+
+`ReadingBlock.blocks(for:state:)`, no núcleo, entrega os blocos com o tipo e o texto sem a marcação, para quem quiser desenhar a própria tela; a imagem chega como `.image(MarkdownImage)`.
 
 ## Escolha da frase pelo modelo do aparelho (opcional)
 
