@@ -8,6 +8,15 @@ struct MarkdownBlockView: View {
     let onToggle: (StretchID) -> Void
 
     @Environment(\.stretchMarkdownStyle) private var style
+    @Environment(\.stretchMarkdownTaskToggle) private var taskToggle
+
+    /// A ação de clicar na tarefa: só existe para item de tarefa, numa leitura
+    /// interativa e com a ação do app no ambiente.
+    static func taskAction(for block: ReadingBlock, isInteractive: Bool, toggle: MarkdownTaskToggle?) -> (() -> Void)? {
+        guard isInteractive, let toggle, case .listItem(.task, _) = block.kind else { return nil }
+        let id = block.id
+        return { toggle.toggle(id) }
+    }
 
     var body: some View {
         switch block.kind {
@@ -30,7 +39,13 @@ struct MarkdownBlockView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
         case .listItem(let marker, let depth):
-            MarkdownListItemView(text: block.text, marker: marker, depth: depth)
+            MarkdownListItemView(
+                id: block.id,
+                text: block.text,
+                marker: marker,
+                depth: depth,
+                action: Self.taskAction(for: block, isInteractive: isInteractive, toggle: taskToggle)
+            )
         case .blockQuote:
             MarkdownQuoteView(text: block.text)
         case .codeBlock, .table:
