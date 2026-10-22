@@ -129,6 +129,43 @@ struct StretchFolderTests {
         #expect(result.document.expandedText == Self.sample)
     }
 
+    @Test("Bloco de imagem nunca dobra, mesmo com o texto alternativo e o título de duas frases")
+    func imageNeverFolds() throws {
+        let image = "![Primeira frase. Segunda frase.](foto.png \"Terceira frase. Quarta frase.\")"
+        let source = "\(image)\n\nUm. Dois.\n"
+        let segmentation = TextSegmenter.segment(source)
+        #expect(segmentation.segments.map(\.kind) == [.image, .blank, .paragraph, .blank])
+        #expect(segmentation.segments[0].sentences.isEmpty)
+        #expect(!segmentation.segments[0].isFoldable)
+        #expect(FirstSentencePicker().choose(in: segmentation.segments[0]) == nil)
+
+        let result = StretchFolder.foldWithFirstSentence(segmentation)
+        #expect(result.decisions[0] == .unchanged(segment: 0, reason: .ineligibleKind(.image)))
+        #expect(result.document.stretchIDs.count == 1)
+        #expect(result.document.collapsedText == "\(image)\n\nUm.\n")
+        #expect(result.document.expandedText == source)
+
+        // Escolha ou falha apontando para a imagem é recusada como em qualquer bloco que não dobra.
+        let choice = SentenceChoice(sentenceID: SentenceID(segment: 0, index: 0), source: .firstSentence)
+        #expect(throws: FoldError.segmentNotFoldable(0)) {
+            try StretchFolder.fold(segmentation, choices: [0: choice])
+        }
+        #expect(throws: FoldError.segmentNotFoldable(0)) {
+            try StretchFolder.fold(segmentation, choices: [:], failures: [0: .refusal])
+        }
+    }
+
+    @Test("Documento montado com imagem passa na validação extrativa e faz ida e volta na marcação")
+    func imageDocumentIsValidAndRoundTrips() throws {
+        let source = "Um. Dois.\n![Foto. Sala.](foto.png)\nTrês. Quatro.\n\n![Outra](<outra foto.png> \"t. u.\")\n"
+        let result = StretchFolder.foldWithFirstSentence(TextSegmenter.segment(source))
+        #expect(result.segmentation.segments.map(\.kind).filter { $0 == .image }.count == 2)
+        #expect(result.document.stretchIDs.count == 2)
+        #expect(StretchValidator.validate(result.document, policy: .extractive).isEmpty)
+        #expect(result.document.expandedText == source)
+        #expect(try StretchParser.parse(StretchWriter.markup(for: result.document)) == result.document)
+    }
+
     @Test("Os blocos que não dobram viram um único texto contíguo")
     func unchangedBlocksMergeIntoText() throws {
         let segmentation = TextSegmenter.segment("# T\n\nSó um.\n")

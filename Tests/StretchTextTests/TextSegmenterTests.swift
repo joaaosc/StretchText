@@ -16,6 +16,7 @@ struct Piece: Equatable, Sendable, CustomStringConvertible {
     static func table(_ text: String) -> Piece { Piece(kind: .table, text: text) }
     static func quote(_ text: String) -> Piece { Piece(kind: .blockQuote, text: text) }
     static func rule(_ text: String) -> Piece { Piece(kind: .thematicBreak, text: text) }
+    static func image(_ text: String) -> Piece { Piece(kind: .image, text: text) }
     static func blank(_ text: String) -> Piece { Piece(kind: .blank, text: text) }
 }
 
@@ -24,8 +25,8 @@ func pieces(of source: String) -> [Piece] {
 }
 
 /// Entradas usadas para conferir a partição exata e, no outro arquivo, a
-/// montagem: vazia, só espaços, CRLF, sem quebra final, emoji, acentos e
-/// todos os tipos de bloco.
+/// montagem: vazia, só espaços, CRLF, sem quebra final, emoji, acentos, imagens
+/// e todos os tipos de bloco.
 enum SegmentationFixtures {
     static let partitionInputs: [String] = [
         "",
@@ -49,6 +50,9 @@ enum SegmentationFixtures {
         "\u{FEFF}Com marca de ordem. Segunda frase.",
         "Com\ttab. Segunda.\t\n\t\n",
         "\n\r\nMisto de quebras. Segunda frase.\r\n\n",
+        "Antes. Duas frases.\n![Foto. Sala.](foto.png)\nDepois. Também.\n",
+        "![A](a.png)\r\n\r\n   ![B](b.png \"Título. Dois.\")  \r\n- item\n![C](<c d.png>)",
+        "- item. Dois.\n\n  ![Foto](foto.png)\n\n![Foto](foto.png)\n```\n![Foto](foto.png)\n```\n",
     ]
 }
 
@@ -110,9 +114,9 @@ struct TextSegmenterTests {
         var testDescription: String { name }
     }
 
-    @Test("A versão do segmentador é 1")
+    @Test("A versão do segmentador é 2")
     func version() {
-        #expect(TextSegmenter.version == 1)
+        #expect(TextSegmenter.version == 2)
     }
 
     // MARK: - Partição
@@ -502,6 +506,200 @@ struct TextSegmenterTests {
     @Test("Código indentado", arguments: indentedCodeExamples)
     func indentedCode(_ example: Example) {
         #expect(pieces(of: example.source) == example.expected)
+    }
+
+    static let imageExamples: [Example] = [
+        Example("linha sozinha", "![Foto](foto.png)", [.image("![Foto](foto.png)")]),
+        Example("com título", "![Foto](foto.png \"Sala\")", [.image("![Foto](foto.png \"Sala\")")]),
+        Example("com origem entre < e >", "![Foto](<minha foto.png>)", [.image("![Foto](<minha foto.png>)")]),
+        Example("sem texto alternativo", "![](foto.png)", [.image("![](foto.png)")]),
+        Example(
+            "recuo de até três espaços e espaços no fim ficam no bloco",
+            "   ![Foto](foto.png)  \t",
+            [.image("   ![Foto](foto.png)  \t")]
+        ),
+        Example(
+            "com linhas em branco em volta",
+            "Antes.\n\n![Foto](foto.png)\n\nDepois.",
+            [.paragraph("Antes."), .blank("\n\n"), .image("![Foto](foto.png)"), .blank("\n\n"), .paragraph("Depois.")]
+        ),
+        Example(
+            "a quebra de linha final fica no .blank",
+            "![Foto](foto.png)\n",
+            [.image("![Foto](foto.png)"), .blank("\n")]
+        ),
+        Example(
+            "interrompe parágrafo",
+            "Texto. Mais texto.\n![Foto](foto.png)",
+            [.paragraph("Texto. Mais texto."), .blank("\n"), .image("![Foto](foto.png)")]
+        ),
+        Example(
+            "a linha seguinte não entra no bloco",
+            "![Foto](foto.png)\nTexto. Mais texto.",
+            [.image("![Foto](foto.png)"), .blank("\n"), .paragraph("Texto. Mais texto.")]
+        ),
+        Example(
+            "imagens seguidas são um bloco cada",
+            "![A](a.png)\n![B](b.png)",
+            [.image("![A](a.png)"), .blank("\n"), .image("![B](b.png)")]
+        ),
+        Example(
+            "interrompe item de lista",
+            "- item\n![Foto](foto.png)",
+            [.item("- item"), .blank("\n"), .image("![Foto](foto.png)")]
+        ),
+        Example(
+            "interrompe item numerado",
+            "1. item\ncontinua\n![Foto](foto.png)",
+            [.item("1. item\ncontinua"), .blank("\n"), .image("![Foto](foto.png)")]
+        ),
+        Example(
+            "interrompe item mesmo com recuo, quando não há linha em branco",
+            "- item\n  ![Foto](foto.png)",
+            [.item("- item"), .blank("\n"), .image("  ![Foto](foto.png)")]
+        ),
+        Example(
+            "depois de item e linha em branco, sem recuo, é bloco próprio",
+            "- item\n\n![Foto](foto.png)",
+            [.item("- item"), .blank("\n\n"), .image("![Foto](foto.png)")]
+        ),
+        Example(
+            "recuada em 2 ou mais depois de item e linha em branco continua o item",
+            "- item\n\n  ![Foto](foto.png)",
+            [.item("- item"), .blank("\n\n"), .item("  ![Foto](foto.png)")]
+        ),
+        Example(
+            "depois de uma imagem não há continuação de item",
+            "- item\n\n![A](a.png)\n\n  ![B](b.png)",
+            [
+                .item("- item"), .blank("\n\n"), .image("![A](a.png)"), .blank("\n\n"),
+                .image("  ![B](b.png)"),
+            ]
+        ),
+        Example(
+            "dentro de um item fica no item",
+            "- ![Foto](foto.png)",
+            [.item("- ![Foto](foto.png)")]
+        ),
+        Example(
+            "seguida de item",
+            "![Foto](foto.png)\n- item",
+            [.image("![Foto](foto.png)"), .blank("\n"), .item("- item")]
+        ),
+        Example(
+            "depois de título, citação, tabela e separador",
+            "# T\n![A](a.png)\n> q\n![B](b.png)\n| a |\n![C](c.png)\n---\n![D](d.png)",
+            [
+                .heading("# T"), .blank("\n"), .image("![A](a.png)"), .blank("\n"),
+                .quote("> q"), .blank("\n"), .image("![B](b.png)"), .blank("\n"),
+                .table("| a |"), .blank("\n"), .image("![C](c.png)"), .blank("\n"),
+                .rule("---"), .blank("\n"), .image("![D](d.png)"),
+            ]
+        ),
+        Example(
+            "sublinhado depois da imagem não faz dela um título",
+            "![Foto](foto.png)\n---",
+            [.image("![Foto](foto.png)"), .blank("\n"), .rule("---")]
+        ),
+        Example(
+            "sublinhado = depois da imagem vira parágrafo",
+            "![Foto](foto.png)\n===",
+            [.image("![Foto](foto.png)"), .blank("\n"), .paragraph("===")]
+        ),
+        Example(
+            "dentro de cerca de código continua código",
+            "```\n![Foto](foto.png)\n```",
+            [.code("```\n![Foto](foto.png)\n```")]
+        ),
+        Example(
+            "dentro de cerca sem fechamento continua código",
+            "~~~\n![Foto](foto.png)\n\n![Outra](outra.png)",
+            [.code("~~~\n![Foto](foto.png)\n\n![Outra](outra.png)")]
+        ),
+        Example(
+            "com quatro espaços ou tab é código indentado",
+            "    ![Foto](foto.png)\n\n\t![Foto](foto.png)",
+            [.code("    ![Foto](foto.png)"), .blank("\n\n"), .code("\t![Foto](foto.png)")]
+        ),
+        Example(
+            "em citação continua citação",
+            "> ![Foto](foto.png)",
+            [.quote("> ![Foto](foto.png)")]
+        ),
+        Example(
+            "em linha de tabela continua tabela",
+            "| ![Foto](foto.png) |\n|---|",
+            [.table("| ![Foto](foto.png) |\n|---|")]
+        ),
+        Example(
+            "como cabeçalho de tabela com delimitador continua tabela",
+            "![Foto](foto.png)\n|---|",
+            [.table("![Foto](foto.png)\n|---|")]
+        ),
+        Example(
+            "no meio de uma frase continua parágrafo",
+            "Veja ![Foto](foto.png) aqui.",
+            [.paragraph("Veja ![Foto](foto.png) aqui.")]
+        ),
+        Example(
+            "com texto antes ou depois continua parágrafo",
+            "![Foto](foto.png) legenda.\n\nlegenda: ![Foto](foto.png)",
+            [.paragraph("![Foto](foto.png) legenda."), .blank("\n\n"), .paragraph("legenda: ![Foto](foto.png)")]
+        ),
+        Example(
+            "duas imagens na mesma linha continuam parágrafo",
+            "![A](a.png) ![B](b.png)",
+            [.paragraph("![A](a.png) ![B](b.png)")]
+        ),
+        Example(
+            "dentro de link continua parágrafo",
+            "[![Foto](foto.png)](https://exemplo.com)",
+            [.paragraph("[![Foto](foto.png)](https://exemplo.com)")]
+        ),
+        Example(
+            "incompleta continua parágrafo",
+            "![Foto](foto.png\n\n![Foto]",
+            [.paragraph("![Foto](foto.png"), .blank("\n\n"), .paragraph("![Foto]")]
+        ),
+        Example(
+            "quebras de linha CRLF",
+            "![A](a.png)\r\n\r\nTexto.\r\n![B](b.png)\r\n",
+            [
+                .image("![A](a.png)"), .blank("\r\n\r\n"), .paragraph("Texto."), .blank("\r\n"),
+                .image("![B](b.png)"), .blank("\r\n"),
+            ]
+        ),
+    ]
+
+    @Test("Imagens", arguments: imageExamples)
+    func images(_ example: Example) {
+        #expect(pieces(of: example.source) == example.expected)
+        expectWellFormed(TextSegmenter.segment(example.source))
+    }
+
+    @Test("Bloco de imagem não tem frases, mesmo com o texto alternativo de duas frases")
+    func imageHasNoSentences() {
+        let segmentation = TextSegmenter.segment("![Primeira frase. Segunda frase.](foto.png)")
+        #expect(segmentation.segments.map(\.kind) == [.image])
+        #expect(segmentation.segments[0].sentences.isEmpty)
+        #expect(!segmentation.segments[0].isFoldable)
+    }
+
+    @Test("Segmentação com imagem faz ida e volta em JSON")
+    func imageSegmentationRoundTrips() throws {
+        let segmentation = TextSegmenter.segment("Texto.\n\n![Foto](foto.png)\n")
+        let data = try JSONEncoder().encode(segmentation)
+        #expect(String(decoding: data, as: UTF8.self).contains("\"image\""))
+        #expect(try JSONDecoder().decode(Segmentation.self, from: data) == segmentation)
+    }
+
+    @Test("Muitas linhas que começam como imagem são segmentadas em tempo linear", .timeLimit(.minutes(1)))
+    func manyImageCandidatesAreQuick() {
+        let unit = "Texto. Dois.\n![Foto](foto.png)\n![quase](sem fim\n![\n\n"
+        let source = String(repeating: unit, count: 20_000)
+        let segmentation = TextSegmenter.segment(source)
+        #expect(segmentation.segments.filter { $0.kind == .image }.count == 20_000)
+        #expect(segmentation.segments.map(\.text).joined() == source)
     }
 
     // MARK: - Quebras de linha

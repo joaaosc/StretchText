@@ -4,8 +4,9 @@
 /// reconhecidas são `\n`, `\r\n` e `\r`. Qualquer mudança que altere a saída
 /// para a mesma entrada incrementa ``version``.
 public enum TextSegmenter {
-    /// Versão do segmentador, parte da chave de cache da escolha de frases.
-    public static let version = 1
+    /// Versão do segmentador, parte da chave de cache da escolha de frases. A 2
+    /// acrescentou o bloco `.image`.
+    public static let version = 2
 
     /// Parte `source` em blocos que, juntos, reproduzem o texto exatamente.
     public static func segment(_ source: String) -> Segmentation {
@@ -62,6 +63,9 @@ private extension LineTable {
         if continuesItem, columns >= 2 { return (.listItem, itemEnd(from: line)) }
         if columns >= 4 { return (.codeBlock, indentedCodeEnd(from: line)) }
         if line + 1 < count, isTableDelimiter(line + 1) { return (.table, tableEnd(from: line + 2)) }
+        // Só vale numa linha que abriria um parágrafo, e vale antes do sublinhado
+        // de título: a imagem é sempre um bloco de uma linha só.
+        if isImage(line) { return (.image, line) }
         return paragraph(from: line)
     }
 
@@ -115,6 +119,7 @@ private extension LineTable {
             || isBlockQuote(line)
             || isTableRow(line)
             || listMarker(at: line) != nil
+            || isImage(line)
     }
 
     /// Parágrafo, ou título quando um sublinhado `=`/`-` o fecha. O sublinhado
@@ -130,13 +135,15 @@ private extension LineTable {
         return (.paragraph, index - 1)
     }
 
-    /// Item numerado só interrompe parágrafo se o número for 1.
+    /// Item numerado só interrompe parágrafo se o número for 1. Linha de imagem
+    /// sempre interrompe.
     func interruptsParagraph(_ line: Int) -> Bool {
         if fence(at: line) != nil
             || isATXHeading(line)
             || isThematicBreak(line)
             || isBlockQuote(line)
             || isTableRow(line)
+            || isImage(line)
         {
             return true
         }

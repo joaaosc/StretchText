@@ -124,6 +124,66 @@ struct ReadingBlockTests {
         ])
     }
 
+    @Test("Imagem sozinha vira um bloco .image, com o texto alternativo como texto")
+    func image() throws {
+        #expect(try Self.blocks("![Foto da obra](obra.png)") == [
+            ReadingBlock(id: 0, kind: .image(MarkdownImage(alt: "Foto da obra", source: "obra.png")), text: "Foto da obra"),
+        ])
+    }
+
+    @Test(
+        "Imagem guarda texto alternativo, origem e título como em MarkdownImage.parse",
+        arguments: [
+            "![Foto](obra.png)",
+            "![Foto](obra.png \"Sala de estar\")",
+            "  ![Foto](<minha obra.png>)  ",
+            "![](obra.png)",
+        ])
+    func imageMatchesParse(line: String) throws {
+        let expected = try #require(MarkdownImage.parse(line))
+        #expect(try Self.blocks(line) == [ReadingBlock(id: 0, kind: .image(expected), text: expected.alt)])
+    }
+
+    @Test("Imagem entre parágrafos não dobra, mesmo com o texto alternativo de duas frases")
+    func imageBetweenParagraphs() throws {
+        let source = "Primeira frase. Segunda frase.\n\n![Uma frase. Duas frases.](a.png)\n\nOutra. Mais uma."
+        let blocks = try Self.blocks(source)
+        #expect(blocks.map(\.id) == [0, 2, 4])
+        #expect(blocks[1] == ReadingBlock(
+            id: 2,
+            kind: .image(MarkdownImage(alt: "Uma frase. Duas frases.", source: "a.png")),
+            text: "Uma frase. Duas frases."
+        ))
+        #expect(blocks[0].stretch != nil)
+        #expect(blocks[1].stretch == nil && !blocks[1].isOpen)
+        #expect(blocks[2].stretch != nil)
+        // Abrir os trechos vizinhos não muda a imagem.
+        #expect(try Self.blocks(source, opening: ["0", "1"])[1] == blocks[1])
+    }
+
+    @Test("Imagem no meio do texto continua parágrafo, com a marcação no texto")
+    func imageInsideText() throws {
+        #expect(try Self.blocks("Veja ![Foto](a.png) agora.") == [
+            ReadingBlock(id: 0, kind: .paragraph, text: "Veja ![Foto](a.png) agora."),
+        ])
+    }
+
+    @Test("Imagem dentro de cerca de código fica no código")
+    func imageInsideFence() throws {
+        #expect(try Self.blocks("```\n![Foto](a.png)\n```") == [
+            ReadingBlock(id: 0, kind: .codeBlock(language: nil), text: "![Foto](a.png)"),
+        ])
+    }
+
+    @Test("Segmento .image montado à mão que não é imagem aparece como parágrafo")
+    func handMadeImageSegment() {
+        let text = "isto não é imagem"
+        let segment = Segment(id: 0, kind: .image, text: text, utf8Range: 0..<text.utf8.count, sentences: [])
+        let content = ReadingBlock.content(of: segment)
+        #expect(content.kind == .paragraph)
+        #expect(content.text == text)
+    }
+
     @Test("CRLF: as linhas são separadas do mesmo jeito")
     func crlf() throws {
         #expect(try Self.blocks("> Uma\r\n> Duas\r\n") == [ReadingBlock(id: 0, kind: .blockQuote, text: "Uma\nDuas")])
