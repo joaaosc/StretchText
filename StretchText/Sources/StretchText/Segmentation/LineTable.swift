@@ -24,6 +24,12 @@ enum Byte {
     static let colon = UInt8(ascii: ":")
     static let equals = UInt8(ascii: "=")
     static let greaterThan = UInt8(ascii: ">")
+    static let lessThan = UInt8(ascii: "<")
+    static let exclamation = UInt8(ascii: "!")
+    static let doubleQuote = UInt8(ascii: "\"")
+    static let openingBracket = UInt8(ascii: "[")
+    static let closingBracket = UInt8(ascii: "]")
+    static let openingParenthesis = UInt8(ascii: "(")
     static let closingParenthesis = UInt8(ascii: ")")
     static let underscore = UInt8(ascii: "_")
     static let backtick = UInt8(ascii: "`")
@@ -189,6 +195,11 @@ struct LineTable: Sendable {
 
     func isBlockQuote(_ line: Int) -> Bool {
         marked(line)?.first == Byte.greaterThan
+    }
+
+    /// Linha que é só uma imagem Markdown, pela mesma regra de ``MarkdownImage/parse(_:)``.
+    func isImage(_ line: Int) -> Bool {
+        MarkdownImage.parse(utf8: content(of: line)) != nil
     }
 
     /// `-`, `*` ou `+` seguido de espaço ou tab; ou 1 a 9 dígitos, `.` ou `)` e espaço ou tab.

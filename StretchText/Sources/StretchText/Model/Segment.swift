@@ -42,6 +42,9 @@ public struct Segment: Hashable, Sendable, Codable, Identifiable {
         case table
         case blockQuote
         case thematicBreak
+        /// Uma linha que é só uma imagem Markdown, reconhecida por ``MarkdownImage``.
+        /// Nunca dobra e não tem frases.
+        case image
         /// Espaços e quebras de linha entre blocos.
         case blank
     }

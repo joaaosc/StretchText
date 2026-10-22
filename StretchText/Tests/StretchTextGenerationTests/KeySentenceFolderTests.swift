@@ -400,6 +400,7 @@ struct KeySentenceFolderTests {
 
     @Test("Sem blocos dobráveis o seletor não é consultado e o texto fica igual", arguments: [
         "", "\n\n", "# Título\n\nSó uma frase.\n\n- item um. item dois.\n\n```\ncódigo. mais código.\n```\n", "...\n",
+        "![Primeira frase. Segunda frase.](foto.png \"Terceira frase. Quarta frase.\")\n",
     ])
     func noFoldableBlocks(_ source: String) async throws {
         let log = CallLog()
@@ -419,6 +420,7 @@ struct KeySentenceFolderTests {
         "Linha um\nainda a linha um. Linha dois.\n\n> Citação. Outra.\n\nFim aqui. Mesmo. Terceira.",
         "```swift\nlet a = 1. let b = 2.\n```\n\nDepois do código. Outra frase.\n\n| a | b |\n|---|---|\n| 1. 2. | 3 |\n",
         "Lisboa é a capital. Fica à beira do Tejo. Dr. Silva recomenda o passeio.\n",
+        "Um. Dois.\n![Foto. Sala.](foto.png)\nTrês. Quatro.\n\n![Outra. Foto.](outra.png)\n",
     ]
 
     @Test("O texto expandido é sempre igual à origem, com qualquer política e mistura de resultados", arguments: policies, documents)

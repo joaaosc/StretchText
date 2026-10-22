@@ -25,7 +25,7 @@ Este documento fixa os tipos, as regras e os testes previstos do pacote antes da
 | `StretchID` | caminho de ordinais, texto `"2.0"` | o texto cresce só no fim (streaming) |
 | `SentenceID` | bloco + frase, texto `"b3s1"` | a segmentação não muda |
 | Versão da gramática de marcação | `StretchParser.grammarVersion = 1` | — |
-| Versão do segmentador | `TextSegmenter.version = 1` | — |
+| Versão do segmentador | `TextSegmenter.version = 2` | — |
 | Versões de prompt e esquema | definidas na Fase 2 | — |
 
 Qualquer mudança que altere a saída do segmentador ou do parser para a mesma entrada incrementa a versão correspondente. A chave de cache da Fase 2 inclui essas versões.
@@ -110,7 +110,7 @@ Garantias testadas:
 
 Primeiro, casamento guloso em O((n + m) log m): cada palavra da curta casa com a próxima ocorrência na longa. Quando todas casam (o caso de uma forma longa válida), esse é exatamente o resultado da programação dinâmica, e ela não roda. Senão, programação dinâmica O(n·m) com tabela de inteiros de 32 bits, empate resolvido de forma fixa (preferir avançar na longa). Acima de `Anchors.maximumAlignmentCells` (4 milhões de células, cerca de 16 MB), fica o resultado guloso, também determinístico. Assim nenhum texto, por maior que seja, aloca memória sem limite.
 
-## Segmentação (versão 1)
+## Segmentação (versão 2)
 
 `TextSegmenter.segment(_:) -> Segmentation`. Regras por linha, sem dependência do sistema operacional. As quebras de linha são `\n`, `\r\n` e `\r`, como no parser e no validador:
 
@@ -122,6 +122,7 @@ Primeiro, casamento guloso em O((n + m) log m): cada palavra da curta casa com a
 - Linha começando com `|`, ou bloco cuja segunda linha é delimitador de tabela (`|---|:--:|`) → `.table` (linhas consecutivas com `|`, até uma linha que começa cerca, título, citação ou separador).
 - `- `, `* `, `+ `, `1. `, `1) ` → `.listItem`, um bloco por item, com as linhas seguintes que não começam outro bloco. Um bloco com 2+ espaços de indentação logo depois de um item (separado só por linhas em branco) também é `.listItem`. Item numerado só interrompe um parágrafo se o número for 1.
 - `> ` → `.blockQuote` (linhas consecutivas).
+- Linha que é só uma imagem Markdown → `.image` (uma linha, sem frases, nunca dobra). A regra é a de `MarkdownImage.parse`: depois de até 3 espaços e antes dos espaços e tabs do fim, exatamente `![alt](origem)`, `![alt](origem "título")` ou `![alt](<origem com espaços>)`; `alt` não tem `]`, a origem não é vazia e só tem espaço dentro de `<` e `>`. Texto antes ou depois, duas imagens, imagem dentro de link e imagem no meio de uma frase continuam parágrafo. A verificação vem depois de cerca, título, separador, tabela, citação, item de lista, continuação indentada de item e código indentado, e antes do parágrafo e do sublinhado de título (`![a](b.png)` seguida de `---` é imagem e separador, não título). A linha de imagem também interrompe parágrafo e item de lista.
 - O resto → `.paragraph` (linhas consecutivas até linha em branco ou início de outro tipo de bloco).
 
 Frases (só em parágrafos), `SentenceSegmenter`:
@@ -130,7 +131,7 @@ Frases (só em parágrafos), `SentenceSegmenter`:
 - Não divide: dentro de código em linha; depois de abreviação conhecida (lista fixa pt/en: `Sr.`, `Sra.`, `Dr.`, `Dra.`, `Prof.`, `Profa.`, `Eng.`, `Av.`, `Ex.`, `Exa.`, `Srta.`, `pág.`, `pag.`, `fig.`, `cap.`, `art.`, `vol.`, `núm.`, `num.`, `tel.`, `Mr.`, `Mrs.`, `Ms.`, `Jr.`, `St.`, `vs.`, `e.g.`, `i.e.`, `p.ex.`, `cf.`, `aprox.`, `approx.`, `dept.`, `depto.`); depois de inicial (uma letra maiúscula sozinha, como `J. Silva`); depois de sigla com pontos (`U.S.`); quando o terminador é `.` ou `…` e o próximo caractere visível é letra minúscula.
 - A frase é o trecho literal sem espaços nas pontas. Pedaço sem nenhuma palavra, pelo mesmo critério do `WordTokenizer` (`:)`, `1️⃣!`), junta-se à frase anterior (ou à seguinte, se for o primeiro). Parágrafo sem letra ou número tem zero frases.
 
-Limites conhecidos da versão 1: links com ponto no texto do link, ênfase que atravessa frases (`**A. B.**`) e abreviações fora da lista. A avaliação da Fase 2 deve registrar esses casos.
+Limites conhecidos (versões 1 e 2): links com ponto no texto do link, ênfase que atravessa frases (`**A. B.**`) e abreviações fora da lista. A avaliação da Fase 2 deve registrar esses casos.
 
 ## Montagem dos trechos
 
@@ -152,7 +153,7 @@ Política `.markup` (texto escrito à mão):
 - `.shortSpansLines`: forma curta com quebra de linha.
 - `.longOmitsShortWords([String])`: palavras da curta que não aparecem, em ordem, na longa com os aninhados fechados (o que o leitor vê ao abrir). Mesma comparação das âncoras.
 - `.longAddsNothing`: a longa, com aninhados fechados, contém a curta mas não acrescenta palavra. Quando a longa omite palavras, só `.longOmitsShortWords` aparece.
-- `.stretchInHeading`, `.stretchInTable`, `.stretchInCodeBlock`: trecho que começa numa linha de título (`#`), numa linha de tabela (começa com `|`) ou dentro de cerca de código formada por nós de texto. O contexto é o da linha em que o `{{` estaria, com os trechos anteriores abertos. Título sublinhado (`===`) e tabela sem `|` no início não são detectados, porque dependem de linhas que vêm depois.
+- `.stretchInHeading`, `.stretchInTable`, `.stretchInCodeBlock`: trecho que começa numa linha de título (`#`), numa linha de tabela (começa com `|`) ou dentro de cerca de código formada por nós de texto. O contexto é o da linha em que o `{{` estaria, com os trechos anteriores abertos. Título sublinhado (`===`), tabela sem `|` no início e linha de imagem não são detectados, porque dependem de linhas que vêm depois ou do resto da linha.
 - Trecho incompleto recebe só `.incomplete` e os problemas de contexto; as regras de conteúdo esperam o trecho chegar inteiro.
 
 Política `.extractive` (documento montado pelo núcleo), além das anteriores:
@@ -167,7 +168,7 @@ Política `.extractive` (documento montado pelo núcleo), além das anteriores:
 - Escritor: ida e volta com textos contendo todos os caracteres especiais, código e trechos incompletos.
 - Estado: abrir, fechar com descendentes, rejeições, `replaceDocument` com texto crescendo, Codable.
 - Âncoras: pontuação e acentos preservados, maiúsculas, palavra repetida, curta não contida, partição exata de `revealed`.
-- Segmentação: cada tipo de bloco, partição exata da origem, CRLF, zero/uma/várias frases, abreviações, iniciais, decimais, reticências, aspas, código em linha, português e inglês.
+- Segmentação: cada tipo de bloco (inclusive imagem), partição exata da origem, CRLF, zero/uma/várias frases, abreviações, iniciais, decimais, reticências, aspas, código em linha, português e inglês.
 - Montagem e validação: documento montado nunca altera a longa (`expandedText == source`), escolhas inválidas lançam erro, cada decisão `.unchanged`, cada problema do validador aparecendo e não aparecendo.
 
 ## Fase 2: escolha da frase-chave pelo modelo (`StretchTextGeneration`)
@@ -244,19 +245,21 @@ O SDK não expõe versão do modelo. A identidade usada no cache é `SystemLangu
 
 Adicionada para o Mural; o `StretchTextView` não muda.
 
-- Núcleo: `ReadingBlock.blocks(for: FoldResult, state: StretchState)` devolve um bloco por `Segment` que não é `.blank`, em ordem. O tipo vem do segmentador: `.paragraph`, `.heading(level:)`, `.listItem(marker:depth:)`, `.blockQuote`, `.codeBlock(language:)`, `.table`, `.thematicBreak`. O texto é o conteúdo sem a marcação de bloco:
+- Núcleo: `ReadingBlock.blocks(for: FoldResult, state: StretchState)` devolve um bloco por `Segment` que não é `.blank`, em ordem. O tipo vem do segmentador: `.paragraph`, `.heading(level:)`, `.listItem(marker:depth:)`, `.blockQuote`, `.codeBlock(language:)`, `.table`, `.thematicBreak`, `.image(MarkdownImage)`. O texto é o conteúdo sem a marcação de bloco:
   - título: sem os `#` de abertura e de fechamento (os de fechamento só quando vêm depois de espaço); no sublinhado, as linhas de cima, e o nível é 1 para `=` e 2 para `-`;
   - item: sem a indentação, o marcador e os espaços depois dele. Marcadores: `.bullet` (`-`, `*`, `+`), `.ordered(n)` (`n.` ou `n)`) e `.task(isDone:)` (`- [ ]`, `- [x]`, `- [X]`). As linhas de continuação perdem a indentação. `depth` é a indentação da primeira linha dividida por 2; a continuação indentada de um item (sem marcador) fica um nível antes, alinhada ao texto do item;
   - citação: sem a indentação, o `>` e um espaço depois dele, em cada linha;
   - código cercado: sem a linha de abertura e, se houver, sem a de fechamento; `language` é a primeira palavra depois da cerca. Código indentado: até 4 colunas a menos em cada linha (tab conta como no segmentador);
-  - tabela: as linhas como estão; separador: texto vazio.
+  - tabela: as linhas como estão; separador: texto vazio;
+  - imagem: o `MarkdownImage` (`alt`, `source`, `title`) vai no tipo, e o texto é o texto alternativo. Um segmento `.image` que `MarkdownImage.parse` não aceita (montado à mão) aparece como parágrafo.
 - Parágrafo dobrado: o texto é `state.visibleText(of:)` e o bloco traz o `StretchID` e se está aberto. Se o trecho não existir no estado, o bloco aparece inteiro, como parágrafo comum.
 - As linhas dentro de um bloco são unidas por `\n`; a formatação em linha fica no texto.
 - Interface: `StretchMarkdownView(result:state:)` mostra os blocos. Formatação em linha com `AttributedString(markdown:)`, sintaxe `.inlineOnlyPreservingWhitespace` e `failurePolicy: .returnPartiallyParsedIfPossible`; se a leitura falhar, o texto aparece literal. Títulos com a característica de acessibilidade de cabeçalho. Itens com o marcador numa coluna (tarefa com `checkmark.square`/`square` e rótulo "Feito"/"A fazer"). Citação com barra lateral. Código e tabela em fonte monoespaçada com fundo. Separador como `Divider`.
 - Cada parágrafo dobrado usa o mesmo botão do `StretchTextView`, com a mesma acessibilidade, área de toque mínima e "Reduzir movimento". O espaço entre blocos vem do estilo, não do botão; entre itens de lista seguidos, é um terço dele, para a lista continuar parecendo uma só.
 - `StretchMarkdownView(result:state:)` com `StretchState` em vez de `Binding` é só leitura: os trechos aparecem no estado dado, como texto comum, sem botão (miniaturas).
+- Imagem: o bloco `.image` usa o desenhista do ambiente, definido por `.stretchMarkdownImage { image in … }` (vale também na leitura só de consulta). Sem desenhista, mostra o texto alternativo (ou a origem, se ele for vazio) com o símbolo `photo`, em estilo secundário, e o texto alternativo como rótulo de acessibilidade. O pacote não abre arquivo nem rede: quem resolve `source` é o app. O espaço entre blocos é o do parágrafo.
 - Estilo: `StretchMarkdownStyle` (fontes do corpo, dos títulos por nível e do código; espaço entre blocos; recuo), trocado pelo ambiente com `.stretchMarkdownStyle(_:)`. O espaço entre linhas segue o `lineSpacing` do ambiente.
-- Limites: tabela não é desenhada como grade; links e imagens em Markdown aparecem só como texto formatado em linha (o link pode ser aberto fora de um trecho); listas não continuam a numeração sozinhas, cada item mostra o número escrito.
+- Limites: tabela não é desenhada como grade; links, e imagens no meio de um texto, aparecem só como texto formatado em linha (o link pode ser aberto fora de um trecho); listas não continuam a numeração sozinhas, cada item mostra o número escrito.
 
 ### App `StretchTextDemo`
 

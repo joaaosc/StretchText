@@ -6,7 +6,8 @@
 /// tipo vem do ``TextSegmenter``, então títulos, itens, citações e código
 /// continuam inteiros, mesmo com linhas em branco dentro de uma cerca. A
 /// formatação em linha (negrito, código, links) fica no texto, para a tela
-/// interpretar.
+/// interpretar. Uma linha só com uma imagem vira `.image`, que a tela desenha
+/// como quiser.
 public struct ReadingBlock: Hashable, Sendable, Identifiable {
     public enum Kind: Hashable, Sendable {
         case paragraph
@@ -21,6 +22,8 @@ public struct ReadingBlock: Hashable, Sendable, Identifiable {
         /// As linhas da tabela, como estão na origem.
         case table
         case thematicBreak
+        /// Uma linha só com uma imagem. O ``text`` do bloco é o texto alternativo.
+        case image(MarkdownImage)
     }
 
     public enum ListMarker: Hashable, Sendable {
@@ -86,6 +89,10 @@ public struct ReadingBlock: Hashable, Sendable, Identifiable {
             return (.table, lines.joined(separator: "\n"))
         case .thematicBreak:
             return (.thematicBreak, "")
+        case .image:
+            // Um `Segment` montado à mão pode não ser imagem: o texto aparece inteiro.
+            guard let image = MarkdownImage.parse(segment.text) else { return (.paragraph, segment.text) }
+            return (.image(image), image.alt)
         }
     }
 

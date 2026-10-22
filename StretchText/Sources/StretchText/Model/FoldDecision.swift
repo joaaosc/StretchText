@@ -26,8 +26,8 @@ public struct SentenceChoice: Hashable, Sendable, Codable {
 
 /// Por que um bloco ficou como estava.
 public enum UnchangedReason: Hashable, Sendable, Codable {
-    /// Títulos, listas, código, tabelas, citações, separadores e espaços não
-    /// viram trecho.
+    /// Títulos, listas, código, tabelas, citações, separadores, imagens e espaços
+    /// não viram trecho.
     case ineligibleKind(Segment.Kind)
     /// Parágrafo sem nenhuma frase (só pontuação ou símbolos).
     case noSentence
