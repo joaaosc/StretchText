@@ -63,6 +63,10 @@ struct Leitura: View {
 
 Para Markdown com títulos, listas e imagens, use `StretchMarkdownView`. Para escolher a frase com o modelo do aparelho, use `StretchTextGeneration`. Os dois, com exemplos completos, estão no [README do pacote](StretchText/README.md).
 
+## App de exemplo
+
+O projeto inclui o app `StretchTextDemo` (`StretchTextDemo/StretchTextDemo.xcodeproj`), para iPhone, iPad e Mac. Ele permite experimentar os gestos de expansão, a renderização de Markdown com imagens e a alternância entre a primeira frase e a seleção pelo modelo do aparelho.
+
 ## Testes
 
 ```sh
