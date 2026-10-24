@@ -17,7 +17,6 @@ Pacote Swift para **iOS 27** e **macOS 27**. Tudo roda no aparelho: sem rede, co
 | Produto | Para quê |
 | --- | --- |
 | `StretchText` | Núcleo determinístico: segmenta, dobra, valida e guarda o estado de leitura. Só `Foundation`. |
-| `StretchTextUI` | Views SwiftUI: `StretchTextView` e `StretchMarkdownView`. |
 | `StretchTextGeneration` | Escolha da frase pelo modelo do aparelho (Foundation Models), com cache e falhas tipadas. |
 
 ## Como usar
@@ -43,8 +42,6 @@ git clone https://github.com/joaaosc/StretchText.git
 
 ```swift
 import StretchText
-import StretchTextUI
-import SwiftUI
 
 let texto = "O build falha às vezes. O motivo é um cache que usa só o package.json como chave."
 
@@ -62,10 +59,6 @@ struct Leitura: View {
 ```
 
 Para Markdown com títulos, listas e imagens, use `StretchMarkdownView`. Para escolher a frase com o modelo do aparelho, use `StretchTextGeneration`. Os dois, com exemplos completos, estão no [README do pacote](StretchText/README.md).
-
-## App de exemplo
-
-O projeto inclui o app `StretchTextDemo` (`StretchTextDemo/StretchTextDemo.xcodeproj`), para iPhone, iPad e Mac. Ele permite experimentar os gestos de expansão, a renderização de Markdown com imagens e a alternância entre a primeira frase e a seleção pelo modelo do aparelho.
 
 ## Testes
 
