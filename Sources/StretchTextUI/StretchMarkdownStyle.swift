@@ -18,19 +18,32 @@ public struct StretchMarkdownStyle: Sendable {
     public var blockSpacing: Double
     /// Recuo de cada nível de lista e da barra das citações.
     public var indent: Double
+    /// Fundo do `==trecho==` (marca-texto). `nil`, o padrão, deixa o `==` literal
+    /// na tela, como na versão 1.0.
+    public var markColor: Color?
+    /// Fundo dos trechos achados, definidos por `stretchMarkdownHighlights(_:)`.
+    public var highlightColor: Color
+    /// Fundo do trecho achado que está em foco (``ReadingHighlight/isCurrent``).
+    public var currentHighlightColor: Color
 
     public init(
         body: Font = .body,
         headings: [Font] = [.title.bold(), .title2.bold(), .title3.bold(), .headline, .subheadline.bold()],
         code: Font = .body.monospaced(),
         blockSpacing: Double = 10,
-        indent: Double = 18
+        indent: Double = 18,
+        markColor: Color? = nil,
+        highlightColor: Color = .yellow.opacity(0.35),
+        currentHighlightColor: Color = .orange.opacity(0.6)
     ) {
         self.body = body
         self.headings = headings
         self.code = code
         self.blockSpacing = blockSpacing
         self.indent = indent
+        self.markColor = markColor
+        self.highlightColor = highlightColor
+        self.currentHighlightColor = currentHighlightColor
     }
 
     /// Fonte do título de `level` (1 a 6), ou a do corpo se não houver títulos.

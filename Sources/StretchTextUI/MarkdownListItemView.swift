@@ -12,15 +12,22 @@ struct MarkdownListItemView: View {
     let depth: Int
     /// Se houver, a linha inteira (sem o recuo) vira um botão que marca a tarefa.
     var action: (() -> Void)?
+    /// Os realces deste bloco, em caracteres do texto sem a marcação.
+    var highlights: [ReadingHighlight] = []
 
     @Environment(\.stretchMarkdownStyle) private var style
+
+    /// O texto do item com o marca-texto e os realces.
+    private var content: AttributedString {
+        MarkdownInline.attributed(text, style: style, highlights: highlights)
+    }
 
     var body: some View {
         Group {
             if let action, case .task(let isDone) = marker {
                 Button(action: action) { row.contentShape(.rect) }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(String(MarkdownInline.attributed(text).characters))
+                    .accessibilityLabel(String(content.characters))
                     .accessibilityValue(isDone ? "Feita" : "A fazer")
                     .accessibilityAddTraits(.isToggle)
                     .accessibilityIdentifier("stretch-task-\(id)")
@@ -48,7 +55,7 @@ struct MarkdownListItemView: View {
                 }
             }
             .frame(minWidth: style.indent, alignment: .trailing)
-            Text(MarkdownInline.attributed(text))
+            Text(content)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
