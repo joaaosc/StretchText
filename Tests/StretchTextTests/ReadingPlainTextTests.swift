@@ -80,6 +80,26 @@ struct ReadingPlainTextTests {
         #expect(open == ["A primeira frase. A segunda frase.", "Título com código", "x ==y=="])
     }
 
+    @Test("A abertura do == pede começo, espaço ou pontuação antes; o fechamento, fim, espaço ou pontuação depois")
+    func markNeedsBoundaries() {
+        // Comparação (`a==b`): o `==` colado em letra ou dígito não é limite de marca.
+        #expect(Self.plain("se a==b e c==d") == "se a==b e c==d")
+        #expect(Self.plain("a==b e c==d") == "a==b e c==d")
+        #expect(Self.plain("x==1 e y==2") == "x==1 e y==2")
+        #expect(Self.plain("a ==b==c") == "a ==b==c")
+        #expect(Self.plain("a==b ==c==") == "a==b c")
+        #expect(Self.plain("se a==b então ==marca== fim") == "se a==b então marca fim")
+        // Os limites que valem.
+        #expect(Self.plain("isto ==é marca== aqui") == "isto é marca aqui")
+        #expect(Self.plain("(==marca==)") == "(marca)")
+        #expect(Self.plain("==marca==.") == "marca.")
+        #expect(Self.plain("==marca==") == "marca")
+        #expect(Self.plain("==1==") == "1")
+        #expect(Self.plain("==a== ==b==") == "a b")
+        #expect(Self.plain("==a==, ==b==") == "a, b")
+        #expect(Self.plain("==abre\nfecha==") == "abre\nfecha")
+    }
+
     @Test("Os marcadores do bloco e do texto concordam: remover os == pareados dá o mesmo texto")
     func markedPositions() {
         let marked = ReadingInline.marked("a ==b== c ==d **e**== f")
