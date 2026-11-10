@@ -151,6 +151,49 @@ struct StretchMarkdownHighlightTests {
         #expect(Self.painted(text, Self.found) == ["ab", "ef"])
     }
 
+    // O intervalo invertido de fato (o `..<` do mapeamento sobre um delimitador) nasce de um vazio colado num `==`;
+    // um `Range` já invertido na entrada nem se monta em Debug.
+    @Test("Realce vazio (inclusive sobre um ==) ou fora do texto não derruba e não pinta, com e sem markColor")
+    func degenerateHighlights() {
+        // `==` pareado em posições variadas: colado em letras, solto entre espaços, no começo e entre pontuação.
+        let samples = ["ab==cd==e", "a ==b== c", "==ab==", "(==a==) ==b=="]
+        let outside: [Range<Int>] = [100..<200, -50 ..< -10, (Int.max - 1)..<Int.max, 0..<Int.max, Int.min..<Int.max]
+
+        for sample in samples {
+            for mark in [nil, Self.mark] {
+                let style = Self.style(mark: mark)
+                let plain = MarkdownInline.attributed(sample, style: style, highlights: [])
+                let length = plain.characters.count
+                // Vazio em toda posição do texto exibido e em volta dele.
+                for position in -2...(length + 4) {
+                    for isCurrent in [false, true] {
+                        let text = MarkdownInline.attributed(
+                            sample, style: style,
+                            highlights: [ReadingHighlight(block: 0, range: position..<position, isCurrent: isCurrent)])
+                        #expect(text == plain, "\(sample) \(position) \(mark == nil)")
+                    }
+                }
+                for range in outside.filter({ $0.upperBound <= 0 || $0.lowerBound > length }) {
+                    let text = MarkdownInline.attributed(sample, style: style, highlights: [ReadingHighlight(block: 0, range: range)])
+                    #expect(text == plain, "\(sample) \(range) \(mark == nil)")
+                }
+                // Um intervalo bom ao lado de um vazio continua pintado.
+                let mixed = MarkdownInline.attributed(
+                    sample, style: style,
+                    highlights: [ReadingHighlight(block: 0, range: 1..<1), ReadingHighlight(block: 0, range: 0..<1)])
+                #expect(Self.painted(mixed, Self.found).count == 1, "\(sample) \(mark == nil)")
+            }
+        }
+        // Do começo ao fim e além dele, o realce cobre o texto todo sem estourar.
+        for mark in [nil, Self.mark] {
+            for range in [0..<Int.max, Int.min..<Int.max] {
+                let text = MarkdownInline.attributed(
+                    "a ==b== c", style: Self.style(mark: mark), highlights: [ReadingHighlight(block: 0, range: range)])
+                #expect(Self.painted(text, Self.found).joined() == String(text.characters), "\(range) \(mark == nil)")
+            }
+        }
+    }
+
     @Test("Realces que se sobrepõem: o atual vence e a ordem de entrada não importa")
     func overlapping() {
         let text = MarkdownInline.attributed(

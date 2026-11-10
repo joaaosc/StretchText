@@ -32,7 +32,10 @@ enum MarkdownInline {
             result = attributed(text)
             // O começo de um trecho que abre depois de um `==` fica depois dele; o fim, antes do que fecha.
             position = { offset, isEnd in
-                offset + 2 * marked.delimiters.count(where: { isEnd ? $0 < offset : $0 <= offset })
+                let skipped = 2 * marked.delimiters.count(where: { isEnd ? $0 < offset : $0 <= offset })
+                // Um fim perto de `Int.max` já estava fora do texto: fica no teto, onde o corte o descarta.
+                let (sum, overflow) = offset.addingReportingOverflow(skipped)
+                return overflow ? Int.max : sum
             }
         }
         paint(highlights, in: &result, style: style, position: position)
@@ -54,8 +57,11 @@ enum MarkdownInline {
         position: (_ offset: Int, _ isEnd: Bool) -> Int
     ) {
         for isCurrent in [false, true] {
-            let ranges = highlights.filter { $0.isCurrent == isCurrent }.map {
-                position($0.range.lowerBound, false)..<position($0.range.upperBound, true)
+            let ranges = highlights.filter { $0.isCurrent == isCurrent }.compactMap { highlight -> Range<Int>? in
+                let lower = position(highlight.range.lowerBound, false)
+                let upper = position(highlight.range.upperBound, true)
+                // Um realce vazio colado num `==` volta invertido do mapeamento (e o `..<` trapa): não pinta nada.
+                return lower < upper ? lower..<upper : nil
             }
             paint(ranges, with: isCurrent ? style.currentHighlightColor : style.highlightColor, in: &text)
         }
