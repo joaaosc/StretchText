@@ -136,6 +136,30 @@ StretchMarkdownView(result: result, state: $state)
 
 `ReadingBlock.blocks(for:state:)`, no núcleo, entrega os blocos com o tipo e o texto sem a marcação, para quem quiser desenhar a própria tela; a imagem chega como `.image(MarkdownImage)`.
 
+### Busca, realce e marca-texto
+
+`ReadingSearch` acha um termo no texto como a tela o mostra. Ignora maiúsculas, acentos e largura dos caracteres e não olha a marcação (o endereço de um link, os `**`, os `==`). As posições são caracteres de `ReadingBlock.plainText`, o texto do bloco sem a marcação em linha; blocos de imagem ficam de fora. O app pinta os achados com `.stretchMarkdownHighlights` e rola até o bloco com `ReadingBlockAnchor`, o `.id` de cada bloco desenhado:
+
+```swift
+let blocos = ReadingBlock.blocks(for: result, state: state)
+let achados = ReadingSearch.matches(of: termo, in: blocos)   // até 500 ocorrências, por padrão
+
+ScrollViewReader { proxy in
+    ScrollView {
+        StretchMarkdownView(result: result, state: $state)
+            .stretchMarkdownStyle(StretchMarkdownStyle(markColor: .yellow.opacity(0.4)))
+            .stretchMarkdownHighlights(achados.enumerated().map { posicao, achado in
+                ReadingHighlight(block: achado.block, range: achado.range, isCurrent: posicao == atual)
+            })
+    }
+    .onChange(of: atual) {
+        proxy.scrollTo(ReadingBlockAnchor(achados[atual].block), anchor: .top)
+    }
+}
+```
+
+`==trecho==` vira marca-texto quando `markColor` está definida; sem ela, o `==` continua literal na tela, como na 1.0. Só vale em texto corrido (não em código, em linha ou em bloco), precisa de dois `=` com texto colado por dentro e não atravessa uma linha em branco; um `==` sem par fica como está. O fundo dos achados vem de `highlightColor` e `currentHighlightColor`. Trocar os realces só repinta o texto: os botões dos trechos e os rótulos de acessibilidade continuam os mesmos.
+
 ## Escolha da frase pelo modelo do aparelho (opcional)
 
 O produto `StretchTextGeneration` usa o Foundation Models para escolher, entre as frases que já existem no parágrafo, a que melhor resume o bloco. O modelo só devolve o rótulo de uma frase oferecida; as formas curta e longa continuam sendo texto literal do autor.
@@ -166,3 +190,7 @@ STRETCHTEXT_RUNTIME_TESTS=1 swift test --filter SystemModelRuntimeTests   # mode
 ```
 
 A avaliação contra a linha de base está em [`Evaluation/`](Evaluation/README.md).
+
+## Versões
+
+- **1.1.0**: busca (`ReadingSearch`, `ReadingBlock.plainText`), realce (`stretchMarkdownHighlights`), marca-texto `==trecho==` (`markColor`) e âncora por bloco (`ReadingBlockAnchor`). Compatível com a 1.0: quem não usa o novo vê o mesmo de antes.
