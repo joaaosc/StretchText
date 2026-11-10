@@ -3,11 +3,13 @@ import SwiftUI
 /// Citação: texto secundário com uma barra à esquerda.
 struct MarkdownQuoteView: View {
     let text: String
+    /// Os realces deste bloco, em caracteres do texto sem a marcação.
+    var highlights: [ReadingHighlight] = []
 
     @Environment(\.stretchMarkdownStyle) private var style
 
     var body: some View {
-        Text(MarkdownInline.attributed(text))
+        Text(MarkdownInline.attributed(text, style: style, highlights: highlights))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, style.indent * 0.75)

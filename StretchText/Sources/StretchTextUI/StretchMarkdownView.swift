@@ -43,6 +43,7 @@ public struct StretchMarkdownView: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
                 MarkdownBlockView(block: block, isInteractive: isInteractive, onToggle: toggle)
+                    .id(ReadingBlockAnchor(block.id))
                     .padding(.top, style.spacing(before: block, after: index > 0 ? blocks[index - 1] : nil))
             }
         }
