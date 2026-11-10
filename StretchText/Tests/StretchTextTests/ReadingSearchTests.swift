@@ -67,6 +67,13 @@ struct ReadingSearchTests {
             ])
     }
 
+    @Test("A comparação a==b não é marca: o == fica no texto exibido e a busca o acha")
+    func comparisonStaysInText() {
+        let blocks = [Self.paragraph(0, "se a==b e c==d")]
+        #expect(ReadingSearch.matches(of: "a==b", in: blocks).map(\.range) == [3..<7])
+        #expect(ReadingSearch.matches(of: "b e c", in: blocks).map(\.range) == [6..<11])
+    }
+
     @Test("As posições contam o texto exibido, sem a marcação nem os ==")
     func positionsInDisplayedText() {
         let blocks = [Self.paragraph(0, "um **forte** ==acordo== firme")]

@@ -35,7 +35,11 @@ package enum ReadingInline {
     /// `==` só vale em texto corrido: dentro de código em linha fica literal.
     /// Precisa ser exatamente dois `=`, com texto colado por dentro (nada de
     /// espaço depois do primeiro nem antes do segundo), e o par não atravessa
-    /// uma linha em branco. Um `==` sem par fica literal, como `x == y` ou `===`.
+    /// uma linha em branco. Como na ênfase do Markdown, o de abertura só vale no
+    /// começo do texto ou depois de espaço ou pontuação, e o de fechamento só no
+    /// fim ou antes de espaço ou pontuação: encostado em letra ou dígito é
+    /// comparação (`a==b e c==d`) e fica literal. Um `==` sem par fica literal,
+    /// como `x == y` ou `===`.
     // shortcut: `\=\=` vira `==` ao ler o Markdown e entra na conta; quem quiser o
     // sinal literal usa código em linha. Tratar a barra exigiria olhar a origem.
     package static func marked(_ source: String) -> Marked {
@@ -81,12 +85,14 @@ package enum ReadingInline {
                 var end = index
                 while end < characters.count, characters[end] == "=", !isCode[end] { end += 1 }
                 if end - index == 2 {
-                    let hugsNext = end < characters.count && !characters[end].isWhitespace
-                    let hugsPrevious = index > 0 && !characters[index - 1].isWhitespace
-                    if let start = open, hugsPrevious {
+                    let before = index > 0 ? characters[index - 1] : nil
+                    let after = end < characters.count ? characters[end] : nil
+                    let canOpen = after.map { !$0.isWhitespace } == true && before?.isWordLike != true
+                    let canClose = before.map { !$0.isWhitespace } == true && after?.isWordLike != true
+                    if let start = open, canClose {
                         pairs.append((start, index))
                         open = nil
-                    } else if hugsNext {
+                    } else if canOpen {
                         open = index
                     }
                 }
@@ -105,4 +111,9 @@ package enum ReadingInline {
         }
         return pairs
     }
+}
+
+extension Character {
+    /// Letra ou dígito: onde um `==` encostado deixa de ser marca-texto.
+    fileprivate var isWordLike: Bool { isLetter || isNumber }
 }
