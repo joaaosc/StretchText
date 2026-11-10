@@ -40,11 +40,12 @@ package enum ReadingInline {
     /// fim ou antes de espaço ou pontuação: encostado em letra ou dígito é
     /// comparação (`a==b e c==d`) e fica literal. Um `==` sem par fica literal,
     /// como `x == y` ou `===`.
-    // shortcut: `\=\=` vira `==` ao ler o Markdown e entra na conta; quem quiser o
-    // sinal literal usa código em linha. Tratar a barra exigiria olhar a origem.
+    // shortcut: `\=\=` vira `==` ao ler o Markdown e conta como um `==` escrito direto, haja ou
+    // não outro na origem (a conferência rápida olha o mesmo texto que a regra); quem quiser o
+    // sinal literal usa código em linha. Respeitar a barra exigiria olhar a origem: só se alguém precisar.
     package static func marked(_ source: String) -> Marked {
         let parsed = parse(source)
-        guard source.contains("==") else { return Marked(text: parsed, marks: [], delimiters: []) }
+        guard String(parsed.characters).contains("==") else { return Marked(text: parsed, marks: [], delimiters: []) }
 
         let characters = Array(parsed.characters)
         var isCode: [Bool] = []
