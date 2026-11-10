@@ -158,7 +158,7 @@ ScrollViewReader { proxy in
 }
 ```
 
-`==trecho==` vira marca-texto quando `markColor` está definida; sem ela, o `==` continua literal na tela, como na 1.0. Só vale em texto corrido (não em código, em linha ou em bloco), precisa de dois `=` com texto colado por dentro e não atravessa uma linha em branco; um `==` sem par fica como está. O fundo dos achados vem de `highlightColor` e `currentHighlightColor`. Trocar os realces só repinta o texto: os botões dos trechos e os rótulos de acessibilidade continuam os mesmos.
+`==trecho==` vira marca-texto quando `markColor` está definida; sem ela, o `==` continua literal na tela, como na 1.0. Só vale em texto corrido (não em código, em linha ou em bloco), precisa de dois `=` com texto colado por dentro e não atravessa uma linha em branco. Como na ênfase do Markdown, a abertura vale no começo do texto ou depois de espaço ou pontuação, e o fechamento no fim ou antes de espaço ou pontuação: `a==b e c==d` (encostado em letra ou dígito) é comparação e fica como está, assim como um `==` sem par. A barra invertida não protege o sinal (o Markdown a resolve antes e `\=\=` conta como `==`); para o `==` literal, use código em linha. O fundo dos achados vem de `highlightColor` e `currentHighlightColor`. Trocar os realces só repinta o texto: os botões dos trechos e os rótulos de acessibilidade continuam os mesmos.
 
 ## Escolha da frase pelo modelo do aparelho (opcional)
 
